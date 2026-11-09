@@ -34,6 +34,8 @@ export type Step =
   | { kind: 'conversation'; lesson: Lesson; turn: ConversationTurn; turnIndex: number };
 
 export interface CheckRequest {
+  mode: 'sentence' | 'conversation';
+  accent: Accent;
   sentence: string;
   /** Palavras que a frase deve conter (ao menos uma). */
   targetWords: string[];
@@ -51,4 +53,6 @@ export interface CheckResult {
   corrected: string;
   /** Explicação em UMA frase (pt-BR). */
   explanationPt: string;
+  /** Só na mini conversa: reação curta do coach ao acerto. */
+  reply?: { en: string; pt: string };
 }

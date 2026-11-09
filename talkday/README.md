@@ -30,8 +30,25 @@ src/
 
 1. Estrutura do projeto: feita
 2. Tela de exercício: feita (correção local provisória em `services/ai/mockClient.ts`)
-3. Proxy Cloudflare Workers + Gemini: pendente
+3. Proxy Cloudflare Workers + Gemini: feito (ver `worker/`)
 4. Conteúdo completo, desbloqueio de fases e persistência (SQLite): pendente
 5. Revisão espaçada: pendente
 6. Tela de progresso: pendente
 7. Acabamento e builds EAS: pendente
+
+## Proxy de IA (Fase 3)
+
+O app nunca vê a chave do Gemini: ela fica no Worker em `worker/`.
+
+```bash
+cd worker && npm install
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put APP_TOKEN      # opcional
+npm test && npm run deploy
+```
+
+Depois copie `.env.example` para `.env` e preencha `EXPO_PUBLIC_AI_PROXY_URL` (e `EXPO_PUBLIC_APP_TOKEN`).
+Sem a URL, o app usa o corretor local de teste. O modelo é configurável em `worker/wrangler.toml` (`GEMINI_MODEL`).
+
+Endpoint `POST /check` (`mode`: `sentence` ou `conversation`) devolve
+`{ correct, corrected, explanationPt, reply? }`; em caso de acerto na conversa, `reply` é a reação do coach.

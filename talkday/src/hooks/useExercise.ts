@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { LESSONS } from '@/data/lessons';
 import { randomError, randomSuccess } from '@/data/messages';
 import { buildSteps } from '@/domain/steps';
-import type { CheckResult, Lesson, Step } from '@/domain/types';
+import type { Accent, CheckResult, Lesson, Step } from '@/domain/types';
 import { aiClient } from '@/services/ai';
 
 export type Phase = 'answering' | 'checking' | 'correct' | 'wrong';
@@ -13,6 +13,7 @@ export interface Feedback {
   message: string;
   corrected: string;
   explanationPt: string;
+  reply?: { en: string; pt: string };
 }
 
 export const ATTEMPTS_BEFORE_LISTEN = 2;
@@ -38,7 +39,7 @@ function referenceFor(step: Step): { reference: string; targets: string[]; tip: 
   }
 }
 
-export function useExercise(lesson: Lesson) {
+export function useExercise(lesson: Lesson, accent: Accent) {
   const steps = useMemo(() => buildSteps(lesson, LESSONS.flatMap((l) => l.words)), [lesson]);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('answering');
@@ -70,6 +71,8 @@ export function useExercise(lesson: Lesson) {
       } else {
         try {
           result = await aiClient.checkSentence({
+            mode: step.kind,
+            accent,
             sentence: answer,
             targetWords: ref.targets,
             context: ref.context,
@@ -89,7 +92,7 @@ export function useExercise(lesson: Lesson) {
       }
       if (result.correct) {
         haptic(Haptics.NotificationFeedbackType.Success);
-        setFeedback({ correct: true, message: randomSuccess(), corrected: result.corrected, explanationPt: '' });
+        setFeedback({ correct: true, message: randomSuccess(), corrected: result.corrected, explanationPt: '', reply: result.reply });
         setPhase('correct');
       } else {
         haptic(Haptics.NotificationFeedbackType.Warning);
@@ -99,7 +102,7 @@ export function useExercise(lesson: Lesson) {
         setPhase('wrong');
       }
     },
-    [step, phase, markMissed],
+    [step, phase, markMissed, accent],
   );
 
   const retry = useCallback(() => {

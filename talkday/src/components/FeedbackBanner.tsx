@@ -29,6 +29,12 @@ export function FeedbackBanner({ feedback, onListenCorrect, showListen }: Props)
           <Text style={styles.bold}>{feedback.corrected}</Text>
         </Text>
       ) : null}
+      {ok && feedback.reply ? (
+        <Text style={styles.reply}>
+          Coach: <Text style={styles.bold}>{feedback.reply.en}</Text>
+          {feedback.reply.pt ? ` (${feedback.reply.pt})` : ''}
+        </Text>
+      ) : null}
       {!ok && feedback.explanationPt ? (
         <Text style={[styles.explain, { color: colors.errorDark }]}>{feedback.explanationPt}</Text>
       ) : null}
@@ -51,6 +57,7 @@ const styles = StyleSheet.create({
   message: { flex: 1, fontSize: 18, fontWeight: '800' },
   correct: { fontSize: 16 },
   bold: { fontWeight: '800' },
+  reply: { fontSize: 15, color: colors.primaryDark },
   explain: { fontSize: 15 },
   listen: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
   listenText: { color: colors.errorDark, fontWeight: '800', textTransform: 'uppercase', fontSize: 13 },

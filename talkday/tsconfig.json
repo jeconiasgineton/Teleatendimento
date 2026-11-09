@@ -7,5 +7,9 @@
         "./src/*"
       ]
     }
-  }
+  },
+  "exclude": [
+    "worker",
+    "node_modules"
+  ]
 }

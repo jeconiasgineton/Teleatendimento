@@ -32,7 +32,7 @@ function heroFor(step: Step) {
 
 export function ExerciseScreen({ lesson }: { lesson: Lesson }) {
   const { accent, rate } = useSettings();
-  const ex = useExercise(lesson);
+  const ex = useExercise(lesson, accent);
   const { step, phase, feedback } = ex;
   const [input, setInput] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
