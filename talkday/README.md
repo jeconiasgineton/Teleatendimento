@@ -26,15 +26,25 @@ src/
   services/     speech (TTS), speechRecognition (STT), ai (cliente de correção)
 ```
 
-## Status das fases
+## Como funciona
 
-1. Estrutura do projeto: feita
-2. Tela de exercício: feita (correção local provisória em `services/ai/mockClient.ts`)
-3. Proxy Cloudflare Workers + Gemini: feito (ver `worker/`)
-4. Conteúdo completo, desbloqueio de fases e persistência (SQLite): pendente
-5. Revisão espaçada: pendente
-6. Tela de progresso: pendente
-7. Acabamento e builds EAS: pendente
+- **Curso:** 90 lições (~1 por dia = meta de 3 meses). A 1ª tem 5 palavras (I, you, is, to, the); as seguintes, de 3 a 5 novas. Conteúdo em `src/data/course/` (formato compacto, validado por testes).
+- **Exercício:** reconhecer (significado), usar em frase curta e mini conversa com o coach. Correção pela IA (ver abaixo).
+- **Desbloqueio:** a lição só conta se você não desistir (pular) de mais de 20% dos passos; a próxima só libera depois da anterior.
+- **Revisão espaçada:** caixas de Leitner com intervalos 0/1/3/7/14/30/60 dias. Acerto sobe uma caixa; erro desce duas e a palavra volta em 10 minutos. Perguntas: completar a frase (digitando ou falando) e traduzir (montando a frase com palavras).
+- **Progresso:** trilha das 90 fases (concluída / atual / bloqueada), palavras aprendidas e barra até a meta de 3 meses (dia X de 90).
+- **Dados:** tudo salvo localmente (AsyncStorage), sem login. Ajustes: sotaque, velocidade, lembrete diário 19h, apagar progresso.
+
+## Testes e builds
+
+```bash
+npm test            # domínio: curso, revisão espaçada, desbloqueio (node:test)
+npm run typecheck
+npx eas build --profile development --platform android   # development build
+npx eas build --profile production --platform all        # lojas
+```
+
+Contas e credenciais (EAS, Apple, Google Play) são suas; nada disso está configurado no repositório.
 
 ## Proxy de IA (Fase 3)
 

@@ -1,5 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useProgress } from '@/context/ProgressContext';
 import { useSettings } from '@/context/SettingsContext';
 import type { Accent } from '@/domain/types';
 import { speak } from '@/services/speech';
@@ -11,11 +13,28 @@ const ACCENTS: { value: Accent; label: string }[] = [
 ];
 
 export default function Settings() {
-  const { accent, setAccent, rate, setRate } = useSettings();
+  const { accent, setAccent, rate, setRate, reminder, setReminder } = useSettings();
+  const { reset } = useProgress();
+  const [busy, setBusy] = useState(false);
+
+  const toggleReminder = async (on: boolean) => {
+    setBusy(true);
+    const ok = await setReminder(on);
+    setBusy(false);
+    if (!ok) Alert.alert('Lembrete indisponível', 'Permita as notificações nas configurações do aparelho para receber o lembrete diário.');
+  };
+
+  const confirmReset = () =>
+    Alert.alert('Apagar progresso?', 'Isso apaga lições concluídas, palavras aprendidas e revisões. Não dá para desfazer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Apagar', style: 'destructive', onPress: reset },
+    ]);
+
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.body}>
+      <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.h1}>Ajustes</Text>
+
         <Text style={styles.h2}>Sotaque do inglês</Text>
         {ACCENTS.map((a) => (
           <Pressable
@@ -31,6 +50,7 @@ export default function Settings() {
             <Text style={styles.optionText}>{a.label}</Text>
           </Pressable>
         ))}
+
         <Text style={styles.h2}>Velocidade da voz</Text>
         <View style={styles.row}>
           {[0.7, 0.9, 1.1].map((r) => (
@@ -48,7 +68,25 @@ export default function Settings() {
             </Pressable>
           ))}
         </View>
-      </View>
+
+        <Text style={styles.h2}>Lembrete</Text>
+        <View style={[styles.option, styles.switchRow]}>
+          <Text style={styles.optionText}>Lembrar de praticar todo dia às 19h</Text>
+          <Switch
+            value={reminder}
+            disabled={busy}
+            onValueChange={toggleReminder}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            accessibilityLabel="Lembrete diário"
+          />
+        </View>
+
+        <Text style={styles.h2}>Dados</Text>
+        <Pressable accessibilityRole="button" onPress={confirmReset} style={[styles.option, styles.danger]}>
+          <Text style={[styles.optionText, { color: colors.errorDark }]}>Apagar meu progresso</Text>
+        </Pressable>
+        <Text style={styles.note}>Seu progresso fica só neste aparelho.</Text>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -62,5 +100,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   option: { borderWidth: 2, borderBottomWidth: 4, borderColor: colors.border, borderRadius: radius.md, padding: space.md, alignItems: 'center' },
   selected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  optionText: { fontSize: 16, fontWeight: '700', color: colors.text },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  danger: { borderColor: colors.errorSoft },
+  optionText: { fontSize: 16, fontWeight: '700', color: colors.text, flexShrink: 1 },
+  note: { color: colors.muted, fontSize: 13, textAlign: 'center', marginTop: space.sm },
 });
