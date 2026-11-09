@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton } from '@/components/BigButton';
 import { FeedbackBanner } from '@/components/FeedbackBanner';
@@ -8,6 +9,7 @@ import { PhraseInput } from '@/components/PhraseInput';
 import { StepProgress } from '@/components/StepProgress';
 import { WordHero } from '@/components/WordHero';
 import { useSettings } from '@/context/SettingsContext';
+import { lessonPassed, type LessonResult } from '@/domain/progress';
 import type { Lesson, Step } from '@/domain/types';
 import { useExercise } from '@/hooks/useExercise';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
@@ -30,7 +32,18 @@ function heroFor(step: Step) {
   }
 }
 
-export function ExerciseScreen({ lesson }: { lesson: Lesson }) {
+interface Props {
+  lesson: Lesson;
+  /** Chamado uma vez ao terminar; devolve true se a lição foi aprovada. */
+  onComplete: (result: LessonResult) => boolean;
+  /** Botão "Continuar" da tela final (aprovado). */
+  onNext: () => void;
+  nextLabel?: string;
+  /** Se informado, mostra um X para sair no topo. */
+  onClose?: () => void;
+}
+
+export function ExerciseScreen({ lesson, onComplete, onNext, nextLabel = 'Próxima lição', onClose }: Props) {
   const { accent, rate } = useSettings();
   const ex = useExercise(lesson, accent);
   const { step, phase, feedback } = ex;
@@ -52,24 +65,41 @@ export function ExerciseScreen({ lesson }: { lesson: Lesson }) {
     setSelected(null);
   }, []);
 
+  const reported = useRef(false);
+  useEffect(() => {
+    if (ex.finished && !reported.current) {
+      reported.current = true;
+      onComplete({ totalSteps: ex.steps.length, skipped: ex.skipped, missedWordIds: [...ex.missedWords] });
+    }
+    if (!ex.finished) reported.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ex.finished]);
+
   if (ex.finished) {
+    const passed = lessonPassed({ totalSteps: ex.steps.length, skipped: ex.skipped });
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.done}>
-          <Text style={styles.doneEmoji}>🏆</Text>
-          <Text style={styles.doneTitle}>Exercício concluído!</Text>
+          <Text style={styles.doneEmoji}>{passed ? '🏆' : '💪'}</Text>
+          <Text style={styles.doneTitle}>{passed ? 'Lição concluída!' : 'Quase lá!'}</Text>
           <Text style={styles.doneText}>
-            {ex.missedWords.size === 0
-              ? 'Sem nenhum erro. Impecável!'
-              : `${ex.missedWords.size} palavra(s) vão para a revisão para você reforçar.`}
+            {!passed
+              ? 'Você pulou muitos passos. Refaça a lição para liberar a próxima — você consegue!'
+              : ex.missedWords.size === 0
+                ? 'Sem nenhum erro. Impecável!'
+                : `${ex.missedWords.size} palavra(s) vão para a revisão para você reforçar.`}
           </Text>
-          <BigButton
-            label="Refazer"
-            onPress={() => {
-              ex.restart();
-              resetInputs();
-            }}
-          />
+          <View style={styles.doneActions}>
+            {passed ? <BigButton label={nextLabel} onPress={onNext} /> : null}
+            <BigButton
+              label={passed ? 'Refazer' : 'Tentar de novo'}
+              tone={passed ? 'ghost' : 'primary'}
+              onPress={() => {
+                ex.restart();
+                resetInputs();
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -107,7 +137,16 @@ export function ExerciseScreen({ lesson }: { lesson: Lesson }) {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <StepProgress index={ex.index} total={ex.steps.length} kind={step.kind} />
+          <View style={styles.topRow}>
+            {onClose ? (
+              <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Sair da lição" hitSlop={12}>
+                <Ionicons name="close" size={28} color={colors.muted} />
+              </Pressable>
+            ) : null}
+            <View style={styles.flex}>
+              <StepProgress index={ex.index} total={ex.steps.length} kind={step.kind} />
+            </View>
+          </View>
           <WordHero
             title={hero.title}
             subtitle={hero.subtitle}
@@ -177,7 +216,7 @@ export function ExerciseScreen({ lesson }: { lesson: Lesson }) {
                   label="Pular"
                   tone="ghost"
                   onPress={() => {
-                    ex.next();
+                    ex.skip();
                     resetInputs();
                   }}
                 />
@@ -202,6 +241,8 @@ const styles = StyleSheet.create({
   bubblePt: { fontSize: 14, color: colors.muted },
   footer: { padding: space.md, gap: space.sm, borderTopWidth: 1, borderTopColor: colors.border },
   actions: { gap: space.xs },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  doneActions: { alignSelf: 'stretch', gap: space.xs },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.lg, gap: space.md },
   doneEmoji: { fontSize: 72 },
   doneTitle: { fontSize: 28, fontWeight: '800', color: colors.text },

@@ -46,6 +46,7 @@ export function useExercise(lesson: Lesson, accent: Accent) {
   const [attempts, setAttempts] = useState(0);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [missedWords, setMissedWords] = useState<Set<string>>(new Set());
+  const [skipped, setSkipped] = useState(0);
 
   const step = steps[index] as Step | undefined;
   const finished = index >= steps.length;
@@ -117,8 +118,17 @@ export function useExercise(lesson: Lesson, accent: Accent) {
     setPhase('answering');
   }, []);
 
+  const skip = useCallback(() => {
+    setSkipped((n) => n + 1);
+    setIndex((i) => i + 1);
+    setAttempts(0);
+    setFeedback(null);
+    setPhase('answering');
+  }, []);
+
   const restart = useCallback(() => {
     setIndex(0);
+    setSkipped(0);
     setAttempts(0);
     setFeedback(null);
     setPhase('answering');
@@ -134,11 +144,13 @@ export function useExercise(lesson: Lesson, accent: Accent) {
     attempts,
     feedback,
     missedWords,
+    skipped,
     canListenCorrect: attempts >= ATTEMPTS_BEFORE_LISTEN,
     canSkip: attempts >= ATTEMPTS_BEFORE_SKIP,
     submit,
     retry,
     next,
+    skip,
     restart,
   };
 }
