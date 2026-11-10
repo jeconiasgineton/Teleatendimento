@@ -59,6 +59,7 @@ export function normalizeResult(raw: unknown, req: CheckRequest): CheckResult | 
 }
 
 export const MAX_HISTORY = 3;
+export const MAX_TOPIC = 120;
 
 export function parseCoachRequest(body: unknown): { ok: true; value: CoachRequest } | { ok: false; error: string } {
   if (typeof body !== 'object' || body === null) return { ok: false, error: 'corpo inválido' };
@@ -87,7 +88,14 @@ export function parseCoachRequest(body: unknown): { ok: true; value: CoachReques
       history.push({ coach, student });
     }
   }
-  return { ok: true, value: { words, history, accent: b.accent === 'en-GB' ? 'en-GB' : 'en-US' } };
+  let topic: string | undefined;
+  if (b.topic !== undefined) {
+    if (typeof b.topic !== 'string') return { ok: false, error: 'topic inválido' };
+    topic = clean(b.topic);
+    if (topic.length > MAX_TOPIC) return { ok: false, error: 'topic muito longo' };
+    topic = topic || undefined;
+  }
+  return { ok: true, value: { words, history, accent: b.accent === 'en-GB' ? 'en-GB' : 'en-US', topic } };
 }
 
 const tokens = (s: string): string[] => s.toLowerCase().match(/[a-z']+/g) ?? [];

@@ -8,6 +8,8 @@ export interface ProgressState {
   /** Ids das palavras já aprendidas, na ordem em que apareceram. */
   learned: string[];
   reviews: Record<string, ReviewItem>;
+  /** Melhor resultado (%) de cada pacote da aba Praticar. */
+  practice: Record<string, { best: number; at: number }>;
 }
 
 export interface LessonResult {
@@ -23,7 +25,7 @@ export const GOAL_DAYS = 90;
 export const MAX_SKIPPED_RATIO = 0.2;
 
 export function initialProgress(now: number): ProgressState {
-  return { version: 1, startedAt: now, completed: {}, learned: [], reviews: {} };
+  return { version: 1, startedAt: now, completed: {}, learned: [], reviews: {}, practice: {} };
 }
 
 export function lessonPassed(r: Pick<LessonResult, 'totalSteps' | 'skipped'>): boolean {

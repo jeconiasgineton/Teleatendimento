@@ -27,6 +27,8 @@ export interface CoachRequest {
   /** Turnos anteriores da conversa (mais antigos primeiro). */
   history: { coach: string; student: string }[];
   accent: 'en-US' | 'en-GB';
+  /** Tema da conversa (ex.: reunião de trabalho). Opcional. */
+  topic?: string;
 }
 
 export interface CoachResult {

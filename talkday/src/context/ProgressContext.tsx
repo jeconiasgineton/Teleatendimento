@@ -9,6 +9,7 @@ import {
   type LessonResult,
   type ProgressState,
 } from '@/domain/progress';
+import { applyPracticeResult } from '@/domain/practice';
 import type { Lesson } from '@/domain/types';
 import { KEYS, loadJSON, saveJSON } from '@/services/storage';
 
@@ -16,6 +17,7 @@ type Action =
   | { type: 'loaded'; state: ProgressState }
   | { type: 'lesson'; lesson: Lesson; result: LessonResult; now: number }
   | { type: 'review'; wordId: string; correct: boolean; now: number }
+  | { type: 'practice'; packId: string; percent: number; now: number }
   | { type: 'reset'; now: number };
 
 interface Store {
@@ -31,6 +33,8 @@ function reducer(store: Store, a: Action): Store {
       return { ...store, state: applyLessonResult(store.state, a.lesson, a.result, a.now) };
     case 'review':
       return { ...store, state: applyReviewResult(store.state, a.wordId, a.correct, a.now) };
+    case 'practice':
+      return { ...store, state: applyPracticeResult(store.state, a.packId, a.percent, a.now) };
     case 'reset':
       return { ...store, state: initialProgress(a.now) };
   }
@@ -55,6 +59,8 @@ interface ProgressApi {
   /** Registra o resultado; devolve true se a lição foi aprovada. */
   completeLesson: (lesson: Lesson, result: LessonResult) => boolean;
   gradeReview: (wordId: string, correct: boolean) => void;
+  /** Registra o resultado (%) de um pacote da aba Praticar. */
+  completePractice: (packId: string, percent: number) => void;
   reset: () => void;
 }
 
@@ -67,7 +73,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     loadJSON(KEYS.progress, isProgress).then((saved) => {
-      if (alive) dispatch({ type: 'loaded', state: saved ?? initialProgress(Date.now()) });
+      if (alive) dispatch({ type: 'loaded', state: saved ? { ...saved, practice: saved.practice ?? {} } : initialProgress(Date.now()) });
     });
     return () => {
       alive = false;
@@ -92,6 +98,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     return passed;
   }, []);
   const gradeReview = useCallback((wordId: string, correct: boolean) => dispatch({ type: 'review', wordId, correct, now: Date.now() }), []);
+  const completePractice = useCallback((packId: string, percent: number) => dispatch({ type: 'practice', packId, percent, now: Date.now() }), []);
   const reset = useCallback(() => dispatch({ type: 'reset', now: Date.now() }), []);
 
   const value = useMemo<ProgressApi>(
@@ -101,9 +108,10 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       currentLesson: currentLessonId(store.state, LESSONS),
       completeLesson,
       gradeReview,
+      completePractice,
       reset,
     }),
-    [store, completeLesson, gradeReview, reset],
+    [store, completeLesson, gradeReview, completePractice, reset],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

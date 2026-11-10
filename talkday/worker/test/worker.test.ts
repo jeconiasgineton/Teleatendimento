@@ -78,6 +78,17 @@ test('coach: rejeita entradas inválidas', () => {
   assert.equal(parseCoachRequest({ ...coachBody, history: [{ coach: 'a', student: 'b' }] }).ok, true);
 });
 
+test('coach: aceita tema opcional e rejeita tema inválido', () => {
+  const ok = parseCoachRequest({ ...coachBody, topic: 'asking for help' });
+  assert.ok(ok.ok);
+  assert.equal(ok.value.topic, 'asking for help');
+  assert.equal(parseCoachRequest({ ...coachBody, topic: 'x'.repeat(121) }).ok, false);
+  assert.equal(parseCoachRequest({ ...coachBody, topic: 5 }).ok, false);
+  const none = parseCoachRequest(coachBody);
+  assert.ok(none.ok);
+  assert.equal(none.value.topic, undefined);
+});
+
 test('coach: resposta-modelo sem palavra da lição é rejeitada', () => {
   const req = parseCoachRequest(coachBody);
   assert.ok(req.ok);

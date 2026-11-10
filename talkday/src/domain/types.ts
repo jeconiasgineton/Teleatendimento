@@ -51,6 +51,8 @@ export interface CoachRequest {
   words: string[];
   history: { coach: string; student: string }[];
   accent: Accent;
+  /** Tema da conversa, ex.: reunião de trabalho. */
+  topic?: string;
 }
 
 export interface CheckResult {

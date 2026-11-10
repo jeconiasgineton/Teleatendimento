@@ -33,6 +33,11 @@ src/
 - **Desbloqueio:** a lição só conta se você não desistir (pular) de mais de 20% dos passos; a próxima só libera depois da anterior.
 - **Revisão espaçada:** caixas de Leitner com intervalos 0/1/3/7/14/30/60 dias. Acerto sobe uma caixa; erro desce duas e a palavra volta em 10 minutos. Perguntas: completar a frase (digitando ou falando) e traduzir (montando a frase com palavras).
 - **Progresso:** trilha das 90 fases (concluída / atual / bloqueada), palavras aprendidas e barra até a meta de 3 meses (dia X de 90).
+- **Praticar (aba extra):** três treinos de inglês para o trabalho, em pacotes que liberam conforme o curso avança (`src/data/practice/`):
+  - *Vocabulário de trabalho:* 4 pacotes de 6 palavras (significado e completar a frase).
+  - *Entendendo a conversa:* 3 pacotes de falas de reunião; o aluno ouve (normal ou devagar) e escolhe o significado.
+  - *Falando nas reuniões:* 4 cenários; o Gemini faz as perguntas (tema enviado ao `/coach`) e corrige as respostas, com perguntas de reserva se a IA falhar.
+  - Um pacote conclui com 60% de acertos. Os testes garantem que as palavras de cada cenário já foram ensinadas na lição que o libera.
 - **Dados:** tudo salvo localmente (AsyncStorage), sem login. Ajustes: sotaque, velocidade, lembrete diário 19h, apagar progresso.
 
 ## Testes e builds
@@ -63,6 +68,6 @@ Sem a URL, o app usa o corretor local de teste. O modelo é configurável em `wo
 Endpoints:
 
 - `POST /check` (`mode`: `sentence` ou `conversation`) devolve `{ correct, corrected, explanationPt, reply? }`; em caso de acerto na conversa, `reply` é a reação do coach.
-- `POST /coach` recebe `{ words, history, accent }` e devolve a próxima pergunta da mini conversa: `{ coach, coachPt, suggestion }`. O Worker só aceita a pergunta se a resposta-modelo usar uma palavra da lição e se ela não repetir o histórico.
+- `POST /coach` recebe `{ words, history, accent, topic? }` e devolve a próxima pergunta da mini conversa: `{ coach, coachPt, suggestion }`. O Worker só aceita a pergunta se a resposta-modelo usar uma palavra da lição e se ela não repetir o histórico.
 
 Na mini conversa o app pré-carrega a pergunta enquanto o aluno termina a parte 2 e já pede a próxima ao acertar. Se a IA falhar ou demorar mais de 8 s, usa as perguntas fixas de `src/data/course/`.
