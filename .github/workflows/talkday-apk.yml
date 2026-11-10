@@ -1,0 +1,55 @@
+name: TalkDay - gerar APK (Android)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # URL pública do proxy, embutida no app (opcional: sem ela o app usa o corretor local).
+      EXPO_PUBLIC_AI_PROXY_URL: ${{ vars.AI_PROXY_URL }}
+      EXPO_NO_TELEMETRY: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: talkday/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Dependências
+        working-directory: talkday
+        run: npm ci --legacy-peer-deps
+      - name: Testes
+        working-directory: talkday
+        run: npm run typecheck && npm test
+      - name: Gerar projeto Android
+        working-directory: talkday
+        run: npx expo prebuild --platform android --no-install
+      - name: Compilar APK (release, assinado com chave de debug)
+        working-directory: talkday/android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+      - name: Renomear
+        run: cp talkday/android/app/build/outputs/apk/release/app-release.apk talkday.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: talkday-apk
+          path: talkday.apk
+      - name: Publicar no Releases (link direto para baixar no celular)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete talkday-apk --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create talkday-apk talkday.apk --repo "$GITHUB_REPOSITORY" --prerelease \
+            --target "$GITHUB_SHA" --title "TalkDay APK" \
+            --notes "APK de teste (Android arm64). Instale e permita 'fontes desconhecidas'."
