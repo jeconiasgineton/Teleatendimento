@@ -1,9 +1,16 @@
-import { RESPONSE_SCHEMA, SYSTEM_PROMPT, buildUserPrompt } from './prompts.ts';
-import type { CheckRequest, Env } from './types.ts';
+import { COACH_SCHEMA, COACH_SYSTEM_PROMPT, RESPONSE_SCHEMA, SYSTEM_PROMPT, buildCoachPrompt, buildUserPrompt } from './prompts.ts';
+import type { CheckRequest, CoachRequest, Env } from './types.ts';
 
 export class UpstreamError extends Error {}
 
-export async function askGemini(env: Env, req: CheckRequest, fetchImpl: typeof fetch = fetch): Promise<unknown> {
+interface Call {
+  system: string;
+  user: string;
+  schema: object;
+  temperature: number;
+}
+
+async function callGemini(env: Env, call: Call, fetchImpl: typeof fetch): Promise<unknown> {
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
@@ -11,13 +18,13 @@ export async function askGemini(env: Env, req: CheckRequest, fetchImpl: typeof f
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: [{ role: 'user', parts: [{ text: buildUserPrompt(req) }] }],
+      systemInstruction: { parts: [{ text: call.system }] },
+      contents: [{ role: 'user', parts: [{ text: call.user }] }],
       generationConfig: {
-        temperature: 0.2,
+        temperature: call.temperature,
         maxOutputTokens: 1024,
         responseMimeType: 'application/json',
-        responseSchema: RESPONSE_SCHEMA,
+        responseSchema: call.schema,
       },
     }),
     signal: AbortSignal.timeout(15000),
@@ -32,4 +39,13 @@ export async function askGemini(env: Env, req: CheckRequest, fetchImpl: typeof f
   } catch {
     throw new UpstreamError('json inválido');
   }
+}
+
+export function askGemini(env: Env, req: CheckRequest, fetchImpl: typeof fetch = fetch): Promise<unknown> {
+  return callGemini(env, { system: SYSTEM_PROMPT, user: buildUserPrompt(req), schema: RESPONSE_SCHEMA, temperature: 0.2 }, fetchImpl);
+}
+
+/** Temperatura maior: queremos perguntas variadas a cada conversa. */
+export function askCoach(env: Env, req: CoachRequest, fetchImpl: typeof fetch = fetch): Promise<unknown> {
+  return callGemini(env, { system: COACH_SYSTEM_PROMPT, user: buildCoachPrompt(req), schema: COACH_SCHEMA, temperature: 0.9 }, fetchImpl);
 }

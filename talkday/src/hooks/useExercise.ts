@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { LESSONS } from '@/data/lessons';
 import { randomError, randomSuccess } from '@/data/messages';
 import { buildSteps } from '@/domain/steps';
-import type { Accent, CheckResult, Lesson, Step } from '@/domain/types';
+import type { Accent, CheckResult, ConversationTurn, Lesson, Step } from '@/domain/types';
 import { aiClient } from '@/services/ai';
 
 export type Phase = 'answering' | 'checking' | 'correct' | 'wrong';
@@ -23,7 +23,7 @@ function haptic(type: Haptics.NotificationFeedbackType) {
   Haptics.notificationAsync(type).catch(() => {});
 }
 
-function referenceFor(step: Step): { reference: string; targets: string[]; tip: string; context?: string } {
+function referenceFor(step: Step, turn: ConversationTurn | null): { reference: string; targets: string[]; tip: string; context?: string } {
   switch (step.kind) {
     case 'recognize':
       return { reference: step.answer, targets: [], tip: step.word.tip };
@@ -31,10 +31,10 @@ function referenceFor(step: Step): { reference: string; targets: string[]; tip: 
       return { reference: step.word.example, targets: [step.word.text], tip: step.word.tip };
     case 'conversation':
       return {
-        reference: step.turn.suggestion,
+        reference: (turn ?? step.turn).suggestion,
         targets: step.lesson.words.map((w) => w.text),
         tip: `Use pelo menos uma destas palavras: ${step.lesson.words.map((w) => `"${w.text}"`).join(', ')}.`,
-        context: step.turn.coach,
+        context: (turn ?? step.turn).coach,
       };
   }
 }
@@ -47,9 +47,56 @@ export function useExercise(lesson: Lesson, accent: Accent) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [missedWords, setMissedWords] = useState<Set<string>>(new Set());
   const [skipped, setSkipped] = useState(0);
+  const [turn, setTurn] = useState<ConversationTurn | null>(null);
+  // Pergunta de cada turno (promessa compartilhada para poder pré-carregar) e histórico enviado à IA.
+  const turnPromises = useRef(new Map<number, Promise<ConversationTurn>>());
+  const log = useRef<{ coach: string; student: string }[]>([]);
+  const logged = useRef(new Set<number>());
 
   const step = steps[index] as Step | undefined;
   const finished = index >= steps.length;
+
+  /** Pede a pergunta do turno à IA; em qualquer falha usa a pergunta fixa da lição. */
+  const requestTurn = useCallback(
+    (turnIndex: number, fallback: ConversationTurn): Promise<ConversationTurn> => {
+      let p = turnPromises.current.get(turnIndex);
+      if (!p) {
+        const words = lesson.words.map((w) => w.text);
+        p = (aiClient.nextCoachTurn
+          ? aiClient.nextCoachTurn({ words, history: log.current.slice(-3), accent })
+          : Promise.reject(new Error('sem IA'))
+        ).catch(() => fallback);
+        turnPromises.current.set(turnIndex, p);
+      }
+      return p;
+    },
+    [lesson, accent],
+  );
+
+  const recordTurn = useCallback((turnIndex: number, coach: string, student: string) => {
+    if (logged.current.has(turnIndex)) return;
+    logged.current.add(turnIndex);
+    log.current.push({ coach, student });
+  }, []);
+
+  // Carrega a pergunta quando chega a mini conversa; antes disso, pré-carrega a primeira.
+  useEffect(() => {
+    if (!step) return;
+    if (step.kind !== 'conversation') {
+      setTurn(null);
+      const first = steps.findIndex((s) => s.kind === 'conversation');
+      const firstStep = steps[first];
+      if (firstStep?.kind === 'conversation' && index >= first - 2) requestTurn(0, firstStep.turn);
+      return;
+    }
+    let alive = true;
+    setTurn(null);
+    requestTurn(step.turnIndex, step.turn).then((t) => alive && setTurn(t));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, step]);
 
   const markMissed = useCallback((s: Step) => {
     if (s.kind === 'conversation') return;
@@ -59,8 +106,9 @@ export function useExercise(lesson: Lesson, accent: Accent) {
   const submit = useCallback(
     async (answer: string) => {
       if (!step || phase === 'checking' || phase === 'correct') return;
+      if (step.kind === 'conversation' && !turn) return;
       setPhase('checking');
-      const ref = referenceFor(step);
+      const ref = referenceFor(step, turn);
       let result: CheckResult;
       if (step.kind === 'recognize') {
         const ok = answer === step.answer;
@@ -93,6 +141,12 @@ export function useExercise(lesson: Lesson, accent: Accent) {
       }
       if (result.correct) {
         haptic(Haptics.NotificationFeedbackType.Success);
+        if (step.kind === 'conversation' && turn) {
+          recordTurn(step.turnIndex, turn.coach, answer);
+          // Já pede a próxima pergunta enquanto o aluno lê o feedback.
+          const nextStep = steps[index + 1];
+          if (nextStep?.kind === 'conversation') requestTurn(nextStep.turnIndex, nextStep.turn);
+        }
         setFeedback({ correct: true, message: randomSuccess(), corrected: result.corrected, explanationPt: '', reply: result.reply });
         setPhase('correct');
       } else {
@@ -103,7 +157,7 @@ export function useExercise(lesson: Lesson, accent: Accent) {
         setPhase('wrong');
       }
     },
-    [step, phase, markMissed, accent],
+    [step, phase, markMissed, accent, turn, steps, index, recordTurn, requestTurn],
   );
 
   const retry = useCallback(() => {
@@ -119,12 +173,13 @@ export function useExercise(lesson: Lesson, accent: Accent) {
   }, []);
 
   const skip = useCallback(() => {
+    if (step?.kind === 'conversation' && turn) recordTurn(step.turnIndex, turn.coach, '');
     setSkipped((n) => n + 1);
     setIndex((i) => i + 1);
     setAttempts(0);
     setFeedback(null);
     setPhase('answering');
-  }, []);
+  }, [step, turn, recordTurn]);
 
   const restart = useCallback(() => {
     setIndex(0);
@@ -133,6 +188,10 @@ export function useExercise(lesson: Lesson, accent: Accent) {
     setFeedback(null);
     setPhase('answering');
     setMissedWords(new Set());
+    setTurn(null);
+    turnPromises.current.clear();
+    log.current = [];
+    logged.current.clear();
   }, []);
 
   return {
@@ -145,6 +204,7 @@ export function useExercise(lesson: Lesson, accent: Accent) {
     feedback,
     missedWords,
     skipped,
+    turn,
     canListenCorrect: attempts >= ATTEMPTS_BEFORE_LISTEN,
     canSkip: attempts >= ATTEMPTS_BEFORE_SKIP,
     submit,

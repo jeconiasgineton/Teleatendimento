@@ -47,6 +47,12 @@ export interface CheckRequest {
   tip: string;
 }
 
+export interface CoachRequest {
+  words: string[];
+  history: { coach: string; student: string }[];
+  accent: Accent;
+}
+
 export interface CheckResult {
   correct: boolean;
   /** Forma correta em inglês. */
