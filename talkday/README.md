@@ -39,6 +39,13 @@ src/
   - *Falando nas reuniões:* 4 cenários; o Gemini faz as perguntas (tema enviado ao `/coach`) e corrige as respostas, com perguntas de reserva se a IA falhar.
   - Um pacote conclui com 60% de acertos. Os testes garantem que as palavras de cada cenário já foram ensinadas na lição que o libera.
 - **Conversa livre por voz (Praticar > Conversa livre):** a Sam (IA) fala, o app escuta sozinho, envia a fala ao Gemini e repete, sem botões depois do "Começar". O aluno pode falar em inglês ou português; se não entender, a IA explica em português e dá uma frase em inglês para repetir. A IA define em que idioma o app escuta a próxima fala (`nextListen`). Silêncio: ouve de novo, pergunta se o aluno está aí e encerra após 4 janelas sem fala. Para terminar, diga "goodbye" ou "tchau".
+- **Planos (Grátis, Premium e Master):**
+  - *Grátis:* curso completo, revisão, progresso, Praticar (vocabulário e compreensão), correção completa por IA com limite de 30 por dia (depois disso, correção básica sem IA) e a parte 3 das lições com as perguntas fixas.
+  - *Premium:* todas as conversas (Conversa livre, Falando nas reuniões e perguntas da mini conversa geradas pela IA) e correção sem limite.
+  - *Master:* tudo do Premium, mais todas as lições e pacotes liberados para teste e um painel em Ajustes que gera códigos Premium.
+  - O plano é validado no **servidor**: o app troca um código por um token assinado (`POST /redeem`) e o Worker confere o token em cada chamada. Códigos Premium (`TD-XXXXXX-AAAAMMDD-XXXXXXXXXX`) vencem na data e podem ser revogados em `REVOKED_IDS`. O limite diário usa um Durable Object e o id anônimo do aparelho.
+  - Assinatura paga: o botão "Assinar" abre o link em `UPGRADE_URL`; a emissão automática do código depois do pagamento ainda depende de um provedor de pagamento.
+- **Correção da frase:** a IA analisa a frase inteira (gramática, escolha de palavras, contexto, escrita e naturalidade), mostra cada problema com a explicação, a forma correta e uma forma mais natural, ajustando a profundidade ao nível do aluno (A1 a B1, pelo ponto do curso).
 - **Dados:** tudo salvo localmente (AsyncStorage), sem login. Ajustes: sotaque, velocidade, lembrete diário 19h, apagar progresso.
 
 ## Testes e builds
@@ -59,16 +66,18 @@ O app nunca vê a chave do Gemini: ela fica no Worker em `worker/`.
 ```bash
 cd worker && npm install
 npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put APP_TOKEN      # opcional
+npx wrangler secret put AUTH_SECRET    # texto longo e aleatório que assina tokens e códigos
+npx wrangler secret put MASTER_CODE    # o seu código de acesso master
 npm test && npm run deploy
 ```
 
-Depois copie `.env.example` para `.env` e preencha `EXPO_PUBLIC_AI_PROXY_URL` (e `EXPO_PUBLIC_APP_TOKEN`).
+Depois copie `.env.example` para `.env` e preencha `EXPO_PUBLIC_AI_PROXY_URL` (e, se houver pagamento, `EXPO_PUBLIC_UPGRADE_URL`).
 Sem a URL, o app usa o corretor local de teste. O modelo é configurável em `worker/wrangler.toml` (`GEMINI_MODEL`).
 
 Endpoints:
 
-- `POST /check` (`mode`: `sentence` ou `conversation`) devolve `{ correct, corrected, explanationPt, reply? }`; em caso de acerto na conversa, `reply` é a reação do coach.
+- `POST /check` (`mode`: `sentence` ou `conversation`, `level?`) devolve `{ correct, corrected, explanationPt, issues?, natural?, reply?, usage? }`. No plano grátis exige o cabeçalho `x-device-id` e responde `429 daily_limit` depois de 30 por dia.
+- `POST /redeem` troca um código por `{ plan, token, expiresAt }`; `POST /admin/code` (só master) gera um código Premium. `/coach` e `/chat` respondem `403 premium_required` ao plano grátis.
 - `POST /chat` recebe `{ history, userText?, confidence?, silence?, listenedAs?, words, accent }` e devolve `{ segments: [{ lang: 'en'|'pt', text }], nextListen: 'en'|'pt', end }` para a conversa livre por voz.
 - `POST /coach` recebe `{ words, history, accent, topic? }` e devolve a próxima pergunta da mini conversa: `{ coach, coachPt, suggestion }`. O Worker só aceita a pergunta se a resposta-modelo usar uma palavra da lição e se ela não repetir o histórico.
 

@@ -13,6 +13,8 @@ jobs:
     env:
       # URL pública do proxy, embutida no app (opcional: sem ela o app usa o corretor local).
       EXPO_PUBLIC_AI_PROXY_URL: ${{ vars.AI_PROXY_URL }}
+      # Link de pagamento do Premium (opcional; sem ele o botão "Assinar" fica oculto).
+      EXPO_PUBLIC_UPGRADE_URL: ${{ vars.UPGRADE_URL }}
       EXPO_NO_TELEMETRY: '1'
       CI: '1'
     steps:

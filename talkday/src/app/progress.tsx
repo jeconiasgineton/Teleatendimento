@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoalHeader } from '@/components/GoalHeader';
 import { LessonNode } from '@/components/LessonNode';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { LESSONS } from '@/data/lessons';
 import { courseStats, lessonStatus } from '@/domain/progress';
@@ -12,6 +13,7 @@ import { colors, space } from '@/theme';
 export default function Progress() {
   const router = useRouter();
   const { state, currentLesson } = useProgress();
+  const { can } = useEntitlement();
   const stats = useMemo(() => courseStats(state, LESSONS, Date.now()), [state]);
   const list = useRef<FlatList>(null);
 
@@ -45,6 +47,7 @@ export default function Progress() {
               status={status}
               score={state.completed[item.id]?.score}
               isLast={index === LESSONS.length - 1}
+              testUnlock={can('unlock-all')}
               onPress={() => (status === 'current' ? router.navigate('/') : router.push({ pathname: '/lesson/[id]', params: { id: String(item.id) } }))}
             />
           );

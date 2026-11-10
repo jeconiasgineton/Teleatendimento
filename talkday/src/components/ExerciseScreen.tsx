@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +9,9 @@ import { OptionList } from '@/components/OptionList';
 import { PhraseInput } from '@/components/PhraseInput';
 import { StepProgress } from '@/components/StepProgress';
 import { WordHero } from '@/components/WordHero';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useSettings } from '@/context/SettingsContext';
+import { levelForLesson } from '@/domain/level';
 import { lessonPassed, type LessonResult } from '@/domain/progress';
 import type { ConversationTurn, Lesson, Step } from '@/domain/types';
 import { useExercise } from '@/hooks/useExercise';
@@ -45,7 +48,9 @@ interface Props {
 
 export function ExerciseScreen({ lesson, onComplete, onNext, nextLabel = 'Próxima lição', onClose }: Props) {
   const { accent, rate } = useSettings();
-  const ex = useExercise(lesson, accent);
+  const { can } = useEntitlement();
+  const router = useRouter();
+  const ex = useExercise(lesson, accent, { aiCoach: can('ai-coach'), level: levelForLesson(lesson.id) });
   const { step, phase, feedback } = ex;
   const [input, setInput] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -203,6 +208,7 @@ export function ExerciseScreen({ lesson, onComplete, onNext, nextLabel = 'Próxi
             <FeedbackBanner
               feedback={feedback}
               showListen={ex.canListenCorrect}
+              onUpgrade={() => router.push('/premium')}
               onListenCorrect={() => speak(referenceText, accent, rate)}
             />
           ) : null}

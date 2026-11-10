@@ -10,6 +10,8 @@ interface Props {
   score?: number;
   isLast: boolean;
   onPress: () => void;
+  /** Usuário master: abre mesmo as lições bloqueadas (só para testes). */
+  testUnlock?: boolean;
 }
 
 const STATUS_LABEL: Record<LessonStatus, string> = {
@@ -19,7 +21,7 @@ const STATUS_LABEL: Record<LessonStatus, string> = {
 };
 
 /** Uma fase na trilha: concluída (check), atual (destacada) ou bloqueada (cinza). */
-export function LessonNode({ lesson, status, score, isLast, onPress }: Props) {
+export function LessonNode({ lesson, status, score, isLast, onPress, testUnlock }: Props) {
   const done = status === 'completed';
   const current = status === 'current';
   const locked = status === 'locked';
@@ -39,11 +41,11 @@ export function LessonNode({ lesson, status, score, isLast, onPress }: Props) {
         {!isLast ? <View style={[styles.line, done && { backgroundColor: colors.primary }]} /> : null}
       </View>
       <Pressable
-        disabled={locked}
+        disabled={locked && !testUnlock}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={`Lição ${lesson.id}, ${lesson.title}, ${STATUS_LABEL[status]}`}
-        accessibilityState={{ disabled: locked }}
+        accessibilityState={{ disabled: locked && !testUnlock }}
         style={[styles.card, current && styles.cardCurrent, locked && styles.cardLocked]}
       >
         <Text style={[styles.title, locked && styles.lockedText]}>
@@ -52,6 +54,7 @@ export function LessonNode({ lesson, status, score, isLast, onPress }: Props) {
         <Text style={[styles.words, locked && styles.lockedText]} numberOfLines={2}>
           {lesson.words.map((w) => w.text).join(' · ')}
         </Text>
+        {locked && testUnlock ? <Text style={styles.meta}>MASTER · toque para testar</Text> : null}
         {done ? <Text style={styles.meta}>Nota {score ?? 100}% · toque para refazer</Text> : null}
         {current ? <Text style={styles.cta}>COMEÇAR →</Text> : null}
       </Pressable>

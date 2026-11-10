@@ -3,8 +3,11 @@ import * as Haptics from 'expo-haptics';
 import { LESSONS } from '@/data/lessons';
 import { randomError, randomSuccess } from '@/data/messages';
 import { buildSteps } from '@/domain/steps';
-import type { Accent, CheckResult, ConversationTurn, Lesson, Step } from '@/domain/types';
-import { aiClient } from '@/services/ai';
+import { FREE_DAILY_LIMIT, limitMessage } from '@/domain/plan';
+import type { Level } from '@/domain/level';
+import type { Accent, CheckResult, ConversationTurn, Issue, Lesson, Step } from '@/domain/types';
+import { aiClient, mockClient } from '@/services/ai';
+import { ApiError } from '@/services/auth';
 
 export type Phase = 'answering' | 'checking' | 'correct' | 'wrong';
 
@@ -14,6 +17,20 @@ export interface Feedback {
   corrected: string;
   explanationPt: string;
   reply?: { en: string; pt: string };
+  /** A frase do aluno, como ele enviou. */
+  original?: string;
+  /** Problemas encontrados na frase inteira. */
+  issues?: Issue[];
+  /** Forma mais natural de dizer. */
+  natural?: string;
+  /** Aviso sobre o plano (ex.: limite diário atingido). */
+  notice?: string;
+}
+
+export interface ExerciseOptions {
+  /** Perguntas da mini conversa geradas pela IA (premium). Sem isso, usa as fixas da lição. */
+  aiCoach: boolean;
+  level: Level;
 }
 
 export const ATTEMPTS_BEFORE_LISTEN = 2;
@@ -39,7 +56,8 @@ function referenceFor(step: Step, turn: ConversationTurn | null): { reference: s
   }
 }
 
-export function useExercise(lesson: Lesson, accent: Accent) {
+export function useExercise(lesson: Lesson, accent: Accent, options: ExerciseOptions) {
+  const { aiCoach, level } = options;
   const steps = useMemo(() => buildSteps(lesson, LESSONS.flatMap((l) => l.words)), [lesson]);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('answering');
@@ -62,7 +80,7 @@ export function useExercise(lesson: Lesson, accent: Accent) {
       let p = turnPromises.current.get(turnIndex);
       if (!p) {
         const words = lesson.words.map((w) => w.text);
-        p = (aiClient.nextCoachTurn
+        p = (aiClient.nextCoachTurn && aiCoach
           ? aiClient.nextCoachTurn({ words, history: log.current.slice(-3), accent })
           : Promise.reject(new Error('sem IA'))
         ).catch(() => fallback);
@@ -70,7 +88,7 @@ export function useExercise(lesson: Lesson, accent: Accent) {
       }
       return p;
     },
-    [lesson, accent],
+    [lesson, accent, aiCoach],
   );
 
   const recordTurn = useCallback((turnIndex: number, coach: string, student: string) => {
@@ -110,6 +128,7 @@ export function useExercise(lesson: Lesson, accent: Accent) {
       setPhase('checking');
       const ref = referenceFor(step, turn);
       let result: CheckResult;
+      let notice: string | undefined;
       if (step.kind === 'recognize') {
         const ok = answer === step.answer;
         result = {
@@ -118,25 +137,33 @@ export function useExercise(lesson: Lesson, accent: Accent) {
           explanationPt: ok ? '' : step.word.tip,
         };
       } else {
+        const request = {
+          mode: step.kind,
+          level,
+          accent,
+          sentence: answer,
+          targetWords: ref.targets,
+          context: ref.context,
+          reference: ref.reference,
+          tip: ref.tip,
+        };
         try {
-          result = await aiClient.checkSentence({
-            mode: step.kind,
-            accent,
-            sentence: answer,
-            targetWords: ref.targets,
-            context: ref.context,
-            reference: ref.reference,
-            tip: ref.tip,
-          });
-        } catch {
-          setPhase('answering');
-          setFeedback({
-            correct: false,
-            message: 'Ops, não consegui conferir agora. 📡',
-            corrected: '',
-            explanationPt: 'Verifique sua conexão e tente de novo.',
-          });
-          return;
+          result = await aiClient.checkSentence(request);
+        } catch (e) {
+          if (e instanceof ApiError && e.code === 'daily_limit') {
+            // Limite do plano grátis: segue com a correção básica (sem IA) e avisa.
+            result = await mockClient.checkSentence(request);
+            notice = `${limitMessage(e.limit ?? FREE_DAILY_LIMIT, e.resetsAt)} Esta correção foi básica (só confere a palavra). Assine o Premium para correção completa sem limite.`;
+          } else {
+            setPhase('answering');
+            setFeedback({
+              correct: false,
+              message: 'Ops, não consegui conferir agora. 📡',
+              corrected: '',
+              explanationPt: 'Verifique sua conexão e tente de novo.',
+            });
+            return;
+          }
         }
       }
       if (result.correct) {
@@ -147,17 +174,36 @@ export function useExercise(lesson: Lesson, accent: Accent) {
           const nextStep = steps[index + 1];
           if (nextStep?.kind === 'conversation') requestTurn(nextStep.turnIndex, nextStep.turn);
         }
-        setFeedback({ correct: true, message: randomSuccess(), corrected: result.corrected, explanationPt: '', reply: result.reply });
+        setFeedback({
+          correct: true,
+          message: randomSuccess(),
+          corrected: result.corrected,
+          explanationPt: '',
+          reply: result.reply,
+          original: step.kind === 'recognize' ? undefined : answer,
+          issues: result.issues,
+          natural: result.natural,
+          notice,
+        });
         setPhase('correct');
       } else {
         haptic(Haptics.NotificationFeedbackType.Warning);
         setAttempts((a) => a + 1);
         markMissed(step);
-        setFeedback({ correct: false, message: randomError(), corrected: result.corrected, explanationPt: result.explanationPt });
+        setFeedback({
+          correct: false,
+          message: randomError(),
+          corrected: result.corrected,
+          explanationPt: result.explanationPt,
+          original: step.kind === 'recognize' ? undefined : answer,
+          issues: result.issues,
+          natural: result.natural,
+          notice,
+        });
         setPhase('wrong');
       }
     },
-    [step, phase, markMissed, accent, turn, steps, index, recordTurn, requestTurn],
+    [step, phase, markMissed, accent, level, turn, steps, index, recordTurn, requestTurn],
   );
 
   const retry = useCallback(() => {

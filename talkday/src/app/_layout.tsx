@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, type ColorValue } from 'react-native';
+import { EntitlementProvider, useEntitlement } from '@/context/EntitlementContext';
 import { ProgressProvider, useProgress } from '@/context/ProgressContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { dueItems } from '@/domain/srs';
@@ -14,8 +15,9 @@ const icon = (name: IconName) =>
 function Shell() {
   const settings = useSettings();
   const progress = useProgress();
+  const entitlement = useEntitlement();
 
-  if (!settings.loaded || !progress.loaded) {
+  if (!settings.loaded || !progress.loaded || !entitlement.loaded) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -44,6 +46,7 @@ function Shell() {
       <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
       <Tabs.Screen name="pack/[kind]" options={{ href: null }} />
       <Tabs.Screen name="talk" options={{ href: null }} />
+      <Tabs.Screen name="premium" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -51,10 +54,12 @@ function Shell() {
 export default function RootLayout() {
   return (
     <SettingsProvider>
-      <ProgressProvider>
-        <StatusBar style="dark" />
-        <Shell />
-      </ProgressProvider>
+      <EntitlementProvider>
+        <ProgressProvider>
+          <StatusBar style="dark" />
+          <Shell />
+        </ProgressProvider>
+      </EntitlementProvider>
     </SettingsProvider>
   );
 }

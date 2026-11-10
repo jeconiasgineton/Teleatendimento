@@ -8,4 +8,17 @@ GEMINI_MODEL = "gemini-2.5-flash"
 
 # Segredos (NÃO ficam neste arquivo):
 #   npx wrangler secret put GEMINI_API_KEY
-#   npx wrangler secret put APP_TOKEN        # opcional
+
+# Contador diário de correções do plano free (Durable Object com SQLite, disponível no plano grátis).
+[[durable_objects.bindings]]
+name = "USAGE"
+class_name = "UsageCounter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UsageCounter"]
+
+# Segredos (além de GEMINI_API_KEY):
+#   npx wrangler secret put AUTH_SECRET     # assina tokens e códigos premium (texto longo e aleatório)
+#   npx wrangler secret put MASTER_CODE     # seu código master
+#   REVOKED_IDS (variável, opcional): ids de códigos premium revogados, separados por vírgula

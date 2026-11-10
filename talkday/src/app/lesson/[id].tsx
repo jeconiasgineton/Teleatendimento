@@ -1,5 +1,6 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ExerciseScreen } from '@/components/ExerciseScreen';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { getLesson } from '@/data/lessons';
 import { lessonStatus } from '@/domain/progress';
@@ -10,9 +11,10 @@ export default function LessonRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { state, completeLesson } = useProgress();
+  const { can } = useEntitlement();
   const lesson = getLesson(Number(id));
 
-  if (!lesson || lessonStatus(state, lesson.id, LESSONS) === 'locked') return <Redirect href="/progress" />;
+  if (!lesson || (lessonStatus(state, lesson.id, LESSONS) === 'locked' && !can('unlock-all'))) return <Redirect href="/progress" />;
 
   return (
     <ExerciseScreen

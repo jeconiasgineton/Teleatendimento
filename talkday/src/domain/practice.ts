@@ -113,8 +113,9 @@ export function packDone(state: ProgressState, pack: PackBase): boolean {
 
 export type PackStatus = 'locked' | 'available' | 'done';
 
-export function packStatus(state: ProgressState, pack: PackBase): PackStatus {
-  if (!packUnlocked(state, pack)) return 'locked';
+/** `unlockAll` (usuário master) abre todos os pacotes para testes. */
+export function packStatus(state: ProgressState, pack: PackBase, unlockAll = false): PackStatus {
+  if (!unlockAll && !packUnlocked(state, pack)) return 'locked';
   return packDone(state, pack) ? 'done' : 'available';
 }
 

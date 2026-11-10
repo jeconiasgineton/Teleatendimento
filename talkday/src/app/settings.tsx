@@ -1,8 +1,12 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MasterPanel } from '@/components/MasterPanel';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { useSettings } from '@/context/SettingsContext';
+import { PLAN_LABEL } from '@/domain/plan';
 import type { Accent } from '@/domain/types';
 import { speak } from '@/services/speech';
 import { colors, radius, space } from '@/theme';
@@ -15,6 +19,8 @@ const ACCENTS: { value: Accent; label: string }[] = [
 export default function Settings() {
   const { accent, setAccent, rate, setRate, reminder, setReminder } = useSettings();
   const { reset } = useProgress();
+  const router = useRouter();
+  const { plan, usage } = useEntitlement();
   const [busy, setBusy] = useState(false);
 
   const toggleReminder = async (on: boolean) => {
@@ -34,6 +40,20 @@ export default function Settings() {
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.h1}>Ajustes</Text>
+
+        <Text style={styles.h2}>Meu plano</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/premium')} style={[styles.option, styles.planRow]}>
+          <View style={styles.planText}>
+            <Text style={styles.optionText}>{PLAN_LABEL[plan]}</Text>
+            {plan === 'free' && usage ? (
+              <Text style={styles.note}>
+                {usage.used} de {usage.limit} correções por IA usadas hoje
+              </Text>
+            ) : null}
+          </View>
+          <Text style={styles.link}>{plan === 'free' ? 'Ver Premium' : 'Gerenciar'}</Text>
+        </Pressable>
+        {plan === 'master' ? <MasterPanel /> : null}
 
         <Text style={styles.h2}>Sotaque do inglês</Text>
         {ACCENTS.map((a) => (
@@ -100,6 +120,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   option: { borderWidth: 2, borderBottomWidth: 4, borderColor: colors.border, borderRadius: radius.md, padding: space.md, alignItems: 'center' },
   selected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  planRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md },
+  planText: { flexShrink: 1, gap: 2 },
+  link: { color: colors.accentDark, fontWeight: '800' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
   danger: { borderColor: colors.errorSoft },
   optionText: { fontSize: 16, fontWeight: '700', color: colors.text, flexShrink: 1 },

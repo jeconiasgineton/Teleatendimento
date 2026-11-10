@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
+import { setAuth } from '../src/services/auth.ts';
 import { createRemoteClient } from '../src/services/ai/remoteClient.ts';
 
 const realFetch = globalThis.fetch;
@@ -16,10 +17,10 @@ test('nextCoachTurn envia o histórico e devolve só os campos esperados', async
     return new Response(JSON.stringify({ coach: 'Where do you go?', coachPt: 'Aonde você vai?', suggestion: 'I go home.', extra: 1 }));
   }) as typeof fetch;
 
-  const turn = await createRemoteClient('https://x.dev/', 'tok').nextCoachTurn!(req);
+  const turn = await createRemoteClient('https://x.dev/').nextCoachTurn!(req);
   assert.deepEqual(turn, { coach: 'Where do you go?', coachPt: 'Aonde você vai?', suggestion: 'I go home.' });
   assert.equal(seen!.url, 'https://x.dev/coach');
-  assert.equal(seen!.headers['x-app-token'], 'tok');
+  assert.equal(seen!.headers['content-type'], 'application/json');
   assert.deepEqual(seen!.body, req);
 });
 
@@ -64,4 +65,47 @@ test('chat rejeita resposta fora do formato', async () => {
     globalThis.fetch = (async () => new Response(JSON.stringify(body))) as typeof fetch;
     await assert.rejects(client.chat!({ history: [], words: [], accent: 'en-US' }));
   }
+});
+
+test('envia o id do aparelho e o token do plano, e lê erros do servidor', async () => {
+  setAuth({ deviceId: 'device-1234567890abcd', token: 'tok-123' });
+  let headers: Record<string, string> = {};
+  globalThis.fetch = (async (_u: string, init: RequestInit) => {
+    headers = init.headers as Record<string, string>;
+    return new Response(JSON.stringify({ error: 'daily_limit', limit: 30, resetsAt: 123 }), { status: 429 });
+  }) as typeof fetch;
+  const client = createRemoteClient('https://x.dev');
+  const err = await client.checkSentence({ mode: 'sentence', accent: 'en-US', sentence: 'I go', targetWords: ['go'], reference: 'I go.', tip: '' }).catch((e) => e);
+  assert.equal(headers['x-device-id'], 'device-1234567890abcd');
+  assert.equal(headers.authorization, 'Bearer tok-123');
+  assert.equal(err.name, 'ApiError');
+  assert.equal(err.status, 429);
+  assert.equal(err.code, 'daily_limit');
+  assert.equal(err.limit, 30);
+  assert.equal(err.resetsAt, 123);
+  setAuth({ token: null });
+});
+
+test('manda o nível e entrega a análise completa e o uso do dia', async () => {
+  let sent: { level?: string } = {};
+  globalThis.fetch = (async (_u: string, init: RequestInit) => {
+    sent = JSON.parse(String(init.body));
+    return new Response(
+      JSON.stringify({
+        correct: false,
+        corrected: 'I took a photo.',
+        explanationPt: 'Use take.',
+        issues: [{ type: 'word-choice', original: 'make a photo', fix: 'take a photo', explanationPt: 'Combinação correta.' }],
+        natural: 'I took a picture.',
+        usage: { used: 3, limit: 30 },
+      }),
+    );
+  }) as typeof fetch;
+  const r = await createRemoteClient('https://x.dev').checkSentence({
+    mode: 'sentence', level: 'A2', accent: 'en-US', sentence: 'I make a photo', targetWords: ['photo'], reference: 'I took a photo.', tip: '',
+  });
+  assert.equal(sent.level, 'A2');
+  assert.equal(r.issues?.[0].type, 'word-choice');
+  assert.equal(r.natural, 'I took a picture.');
+  assert.deepEqual(r.usage, { used: 3, limit: 30 });
 });

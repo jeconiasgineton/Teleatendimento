@@ -1,5 +1,6 @@
 import type { ChatRequest, ChatResult } from '@/domain/chat';
 import type { CheckRequest, CheckResult, CoachRequest, ConversationTurn } from '@/domain/types';
+import { authHeaders, emitUsage, toApiError } from '../auth.ts';
 import type { AIClient } from './types';
 
 const TIMEOUT_MS = 15000;
@@ -46,43 +47,45 @@ function isChatResult(x: unknown): x is ChatResult {
 }
 
 /** Chama o proxy (Cloudflare Worker) que guarda a chave do Gemini. */
-export function createRemoteClient(baseUrl: string, appToken?: string): AIClient {
+export function createRemoteClient(baseUrl: string): AIClient {
   const base = baseUrl.replace(/\/+$/, '');
-  const url = `${base}/check`;
-  const headers = { 'content-type': 'application/json', ...(appToken ? { 'x-app-token': appToken } : {}) };
+
+  /** POST com identidade (aparelho + token do plano); erros do servidor viram ApiError. */
+  async function post(path: string, body: unknown, ms: number): Promise<unknown> {
+    const res = await fetchWithTimeout(
+      `${base}${path}`,
+      { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) },
+      ms,
+    );
+    if (!res.ok) throw await toApiError(res);
+    return res.json();
+  }
+
   return {
     async checkSentence(req: CheckRequest): Promise<CheckResult> {
-      const res = await fetchWithTimeout(
-        url,
+      const data = await post(
+        '/check',
         {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            mode: req.mode,
-            sentence: req.sentence,
-            targetWords: req.targetWords,
-            context: req.context,
-            accent: req.accent,
-          }),
+          mode: req.mode,
+          level: req.level,
+          sentence: req.sentence,
+          targetWords: req.targetWords,
+          context: req.context,
+          accent: req.accent,
         },
         TIMEOUT_MS,
       );
-      if (!res.ok) throw new Error(`proxy ${res.status}`);
-      const data: unknown = await res.json();
       if (!isResult(data)) throw new Error('resposta inválida do proxy');
+      if (data.usage) emitUsage(data.usage);
       return data;
     },
     async nextCoachTurn(req: CoachRequest): Promise<ConversationTurn> {
-      const res = await fetchWithTimeout(`${base}/coach`, { method: 'POST', headers, body: JSON.stringify(req) }, COACH_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`proxy ${res.status}`);
-      const data: unknown = await res.json();
+      const data = await post('/coach', req, COACH_TIMEOUT_MS);
       if (!isTurn(data)) throw new Error('resposta inválida do proxy');
       return { coach: data.coach, coachPt: data.coachPt, suggestion: data.suggestion };
     },
     async chat(req: ChatRequest): Promise<ChatResult> {
-      const res = await fetchWithTimeout(`${base}/chat`, { method: 'POST', headers, body: JSON.stringify(req) }, CHAT_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`proxy ${res.status}`);
-      const data: unknown = await res.json();
+      const data = await post('/chat', req, CHAT_TIMEOUT_MS);
       if (!isChatResult(data)) throw new Error('resposta inválida do proxy');
       return data;
     },

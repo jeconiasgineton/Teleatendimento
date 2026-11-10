@@ -1,20 +1,31 @@
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { PRACTICES, type PracticeInfo } from '@/data/practice';
 import { packStatus } from '@/domain/practice';
 import { colors, radius, space } from '@/theme';
 
+function PremiumBadge() {
+  return (
+    <View style={styles.badge} accessibilityLabel="Exclusivo do Premium">
+      <Text style={styles.badgeText}>⭐ Premium</Text>
+    </View>
+  );
+}
+
 export default function Practice() {
   const router = useRouter();
   const { state } = useProgress();
+  const { can } = useEntitlement();
+  const unlockAll = can('unlock-all');
 
   const summary = (p: PracticeInfo) => {
-    const statuses = p.packs.map((pk) => packStatus(state, pk));
+    const statuses = p.packs.map((pk) => packStatus(state, pk, unlockAll));
     const done = statuses.filter((s) => s === 'done').length;
     const open = statuses.some((s) => s !== 'locked');
-    const firstLocked = p.packs.find((pk) => packStatus(state, pk) === 'locked');
+    const firstLocked = p.packs.find((pk) => packStatus(state, pk, unlockAll) === 'locked');
     return { done, open, firstLocked };
   };
 
@@ -25,11 +36,14 @@ export default function Practice() {
         <Text style={styles.intro}>Treinos extras de inglês para o trabalho. Eles liberam conforme você avança no curso.</Text>
 
         <Pressable
-          onPress={() => router.push('/talk')}
+          onPress={() => router.push(can('free-talk') ? '/talk' : '/premium')}
           accessibilityRole="button"
           style={({ pressed }) => [styles.card, styles.featured, pressed && styles.pressed]}
         >
-          <Text style={styles.title}>Conversa livre</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Conversa livre</Text>
+            {!can('free-talk') ? <PremiumBadge /> : null}
+          </View>
           <Text style={styles.subtitle}>Converse com a Sam, sem apertar nada</Text>
           <View style={styles.tip}>
             <Text style={styles.tipText}>✦ Ela fala, você responde em inglês ou em português, e a conversa continua sozinha.</Text>
@@ -41,13 +55,20 @@ export default function Practice() {
           return (
             <Pressable
               key={p.kind}
-              disabled={!s.open}
-              onPress={() => router.push({ pathname: '/pack/[kind]', params: { kind: p.kind } })}
+              disabled={!s.open && !(p.kind === 'meeting' && !can('meeting'))}
+              onPress={() =>
+                p.kind === 'meeting' && !can('meeting')
+                  ? router.push('/premium')
+                  : router.push({ pathname: '/pack/[kind]', params: { kind: p.kind } })
+              }
               accessibilityRole="button"
               accessibilityState={{ disabled: !s.open }}
               style={({ pressed }) => [styles.card, !s.open && styles.cardLocked, pressed && styles.pressed]}
             >
-              <Text style={[styles.title, !s.open && styles.lockedText]}>{p.title}</Text>
+              <View style={styles.titleRow}>
+                <Text style={[styles.title, !s.open && styles.lockedText]}>{p.title}</Text>
+                {p.kind === 'meeting' && !can('meeting') ? <PremiumBadge /> : null}
+              </View>
               <Text style={[styles.subtitle, !s.open && styles.lockedText]}>{p.subtitle}</Text>
               <View style={[styles.tip, !s.open && styles.tipLocked]}>
                 <Text style={[styles.tipText, !s.open && styles.lockedText]}>✦ {p.description}</Text>
@@ -74,7 +95,10 @@ const styles = StyleSheet.create({
   cardLocked: { opacity: 0.7 },
   pressed: { opacity: 0.9 },
   featured: { borderWidth: 2, borderColor: colors.primary },
-  title: { fontSize: 20, fontWeight: '800', color: colors.text },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
+  title: { fontSize: 20, fontWeight: '800', color: colors.text, flexShrink: 1 },
+  badge: { backgroundColor: '#FFF3C4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 12, fontWeight: '800', color: '#8A6100' },
   subtitle: { fontSize: 17, color: colors.text },
   tip: {
     backgroundColor: colors.accentSoft,
