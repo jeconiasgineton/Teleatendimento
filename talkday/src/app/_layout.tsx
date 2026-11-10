@@ -34,6 +34,7 @@ function Shell() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Exercício', tabBarIcon: icon('school') }} />
+      <Tabs.Screen name="practice" options={{ title: 'Praticar', tabBarIcon: icon('briefcase') }} />
       <Tabs.Screen
         name="review"
         options={{ title: 'Revisão', tabBarIcon: icon('repeat'), tabBarBadge: due > 0 ? due : undefined }}
@@ -41,6 +42,8 @@ function Shell() {
       <Tabs.Screen name="progress" options={{ title: 'Progresso', tabBarIcon: icon('trophy') }} />
       <Tabs.Screen name="settings" options={{ title: 'Ajustes', tabBarIcon: icon('settings') }} />
       <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
+      <Tabs.Screen name="pack/[kind]" options={{ href: null }} />
+      <Tabs.Screen name="talk" options={{ href: null }} />
     </Tabs>
   );
 }

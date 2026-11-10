@@ -1,5 +1,8 @@
-import { COACH_SCHEMA, COACH_SYSTEM_PROMPT, RESPONSE_SCHEMA, SYSTEM_PROMPT, buildCoachPrompt, buildUserPrompt } from './prompts.ts';
-import type { CheckRequest, CoachRequest, Env } from './types.ts';
+import {
+  CHAT_SCHEMA, CHAT_SYSTEM_PROMPT, COACH_SCHEMA, COACH_SYSTEM_PROMPT, RESPONSE_SCHEMA, SYSTEM_PROMPT,
+  buildChatPrompt, buildCoachPrompt, buildUserPrompt,
+} from './prompts.ts';
+import type { ChatRequest, CheckRequest, CoachRequest, Env } from './types.ts';
 
 export class UpstreamError extends Error {}
 
@@ -48,4 +51,9 @@ export function askGemini(env: Env, req: CheckRequest, fetchImpl: typeof fetch =
 /** Temperatura maior: queremos perguntas variadas a cada conversa. */
 export function askCoach(env: Env, req: CoachRequest, fetchImpl: typeof fetch = fetch): Promise<unknown> {
   return callGemini(env, { system: COACH_SYSTEM_PROMPT, user: buildCoachPrompt(req), schema: COACH_SCHEMA, temperature: 0.9 }, fetchImpl);
+}
+
+/** Conversa livre: um pouco de variedade, mas sem fugir do assunto. */
+export function askChat(env: Env, req: ChatRequest, fetchImpl: typeof fetch = fetch): Promise<unknown> {
+  return callGemini(env, { system: CHAT_SYSTEM_PROMPT, user: buildChatPrompt(req), schema: CHAT_SCHEMA, temperature: 0.8 }, fetchImpl);
 }
