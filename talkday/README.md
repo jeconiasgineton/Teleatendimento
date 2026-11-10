@@ -38,6 +38,7 @@ src/
   - *Entendendo a conversa:* 3 pacotes de falas de reunião; o aluno ouve (normal ou devagar) e escolhe o significado.
   - *Falando nas reuniões:* 4 cenários; o Gemini faz as perguntas (tema enviado ao `/coach`) e corrige as respostas, com perguntas de reserva se a IA falhar.
   - Um pacote conclui com 60% de acertos. Os testes garantem que as palavras de cada cenário já foram ensinadas na lição que o libera.
+- **Conversa livre por voz (Praticar > Conversa livre):** a Sam (IA) fala, o app escuta sozinho, envia a fala ao Gemini e repete, sem botões depois do "Começar". O aluno pode falar em inglês ou português; se não entender, a IA explica em português e dá uma frase em inglês para repetir. A IA define em que idioma o app escuta a próxima fala (`nextListen`). Silêncio: ouve de novo, pergunta se o aluno está aí e encerra após 4 janelas sem fala. Para terminar, diga "goodbye" ou "tchau".
 - **Dados:** tudo salvo localmente (AsyncStorage), sem login. Ajustes: sotaque, velocidade, lembrete diário 19h, apagar progresso.
 
 ## Testes e builds
@@ -68,6 +69,7 @@ Sem a URL, o app usa o corretor local de teste. O modelo é configurável em `wo
 Endpoints:
 
 - `POST /check` (`mode`: `sentence` ou `conversation`) devolve `{ correct, corrected, explanationPt, reply? }`; em caso de acerto na conversa, `reply` é a reação do coach.
+- `POST /chat` recebe `{ history, userText?, confidence?, silence?, listenedAs?, words, accent }` e devolve `{ segments: [{ lang: 'en'|'pt', text }], nextListen: 'en'|'pt', end }` para a conversa livre por voz.
 - `POST /coach` recebe `{ words, history, accent, topic? }` e devolve a próxima pergunta da mini conversa: `{ coach, coachPt, suggestion }`. O Worker só aceita a pergunta se a resposta-modelo usar uma palavra da lição e se ela não repetir o histórico.
 
 Na mini conversa o app pré-carrega a pergunta enquanto o aluno termina a parte 2 e já pede a próxima ao acertar. Se a IA falhar ou demorar mais de 8 s, usa as perguntas fixas de `src/data/course/`.

@@ -37,3 +37,38 @@ export interface CoachResult {
   /** Resposta-modelo (usa ao menos uma das palavras da lição). */
   suggestion: string;
 }
+
+export interface ChatTurn {
+  role: 'ai' | 'user';
+  text: string;
+}
+
+export interface ChatRequest {
+  /** Conversa até agora (mais antigos primeiro). Vazio + sem userText = abrir a conversa. */
+  history: ChatTurn[];
+  /** Última fala do aluno, ainda fora do histórico. */
+  userText?: string;
+  /** Confiança do reconhecimento de voz (0 a 1), se houver. */
+  confidence?: number;
+  /** O aluno ficou em silêncio. */
+  silence?: boolean;
+  /** Idioma em que o app estava escutando. */
+  listenedAs?: 'en' | 'pt';
+  /** Palavras que o aluno já aprendeu (para o vocabulário da conversa). */
+  words: string[];
+  accent: 'en-US' | 'en-GB';
+}
+
+export interface ChatSegment {
+  lang: 'en' | 'pt';
+  text: string;
+}
+
+export interface ChatResult {
+  /** O que a IA vai falar, em ordem; cada trecho usa a voz do seu idioma. */
+  segments: ChatSegment[];
+  /** Idioma em que o app deve escutar a próxima resposta. */
+  nextListen: 'en' | 'pt';
+  /** A conversa terminou (o aluno se despediu ou pediu para parar). */
+  end: boolean;
+}

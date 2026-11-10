@@ -24,6 +24,18 @@ export default function Practice() {
         <Text style={styles.h1}>Praticar</Text>
         <Text style={styles.intro}>Treinos extras de inglês para o trabalho. Eles liberam conforme você avança no curso.</Text>
 
+        <Pressable
+          onPress={() => router.push('/talk')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.card, styles.featured, pressed && styles.pressed]}
+        >
+          <Text style={styles.title}>Conversa livre</Text>
+          <Text style={styles.subtitle}>Converse com a Sam, sem apertar nada</Text>
+          <View style={styles.tip}>
+            <Text style={styles.tipText}>✦ Ela fala, você responde em inglês ou em português, e a conversa continua sozinha.</Text>
+          </View>
+        </Pressable>
+
         {PRACTICES.map((p) => {
           const s = summary(p);
           return (
@@ -61,6 +73,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.bg, borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   cardLocked: { opacity: 0.7 },
   pressed: { opacity: 0.9 },
+  featured: { borderWidth: 2, borderColor: colors.primary },
   title: { fontSize: 20, fontWeight: '800', color: colors.text },
   subtitle: { fontSize: 17, color: colors.text },
   tip: {

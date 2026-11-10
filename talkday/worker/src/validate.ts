@@ -1,4 +1,4 @@
-import type { CheckRequest, CheckResult, CoachRequest, CoachResult } from './types.ts';
+import type { CheckRequest, CheckResult, ChatRequest, ChatResult, CoachRequest, CoachResult } from './types.ts';
 
 export const MAX_SENTENCE = 200;
 export const MAX_CONTEXT = 200;
@@ -115,4 +115,90 @@ export function normalizeCoach(raw: unknown, req: CoachRequest): CoachResult | n
   // A pergunta não pode ser repetida de um turno anterior.
   if (req.history.some((h) => h.coach.toLowerCase() === coach.toLowerCase())) return null;
   return { coach, coachPt, suggestion };
+}
+
+export const MAX_CHAT_TURNS = 12;
+export const MAX_CHAT_TEXT = 300;
+export const MAX_CHAT_WORDS = 40;
+const MAX_SEGMENTS = 4;
+
+export function parseChatRequest(body: unknown): { ok: true; value: ChatRequest } | { ok: false; error: string } {
+  if (typeof body !== 'object' || body === null) return { ok: false, error: 'corpo inválido' };
+  const b = body as Record<string, unknown>;
+
+  const history: ChatRequest['history'] = [];
+  if (b.history !== undefined) {
+    if (!Array.isArray(b.history) || b.history.length > MAX_CHAT_TURNS) return { ok: false, error: 'history inválido' };
+    for (const h of b.history) {
+      const t = h as Record<string, unknown> | null;
+      if (typeof t !== 'object' || t === null || (t.role !== 'ai' && t.role !== 'user') || typeof t.text !== 'string') {
+        return { ok: false, error: 'history inválido' };
+      }
+      const text = clean(t.text);
+      if (!text || text.length > MAX_CHAT_TEXT) return { ok: false, error: 'history inválido' };
+      history.push({ role: t.role, text });
+    }
+  }
+
+  let userText: string | undefined;
+  if (b.userText !== undefined) {
+    if (typeof b.userText !== 'string') return { ok: false, error: 'userText inválido' };
+    userText = clean(b.userText);
+    if (userText.length > MAX_CHAT_TEXT) return { ok: false, error: 'userText muito longo' };
+    userText = userText || undefined;
+  }
+
+  let confidence: number | undefined;
+  if (b.confidence !== undefined) {
+    if (typeof b.confidence !== 'number' || !(b.confidence >= 0 && b.confidence <= 1)) return { ok: false, error: 'confidence inválido' };
+    confidence = b.confidence;
+  }
+
+  const silence = b.silence === true;
+  if (b.silence !== undefined && typeof b.silence !== 'boolean') return { ok: false, error: 'silence inválido' };
+  if (silence && userText) return { ok: false, error: 'silence e userText juntos' };
+
+  const words: string[] = [];
+  if (b.words !== undefined) {
+    if (!Array.isArray(b.words) || b.words.length > MAX_CHAT_WORDS) return { ok: false, error: 'words inválido' };
+    for (const w of b.words) {
+      if (typeof w !== 'string') return { ok: false, error: 'words inválido' };
+      const t = clean(w);
+      if (!t || t.length > MAX_WORD) return { ok: false, error: 'words inválido' };
+      words.push(t);
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      history,
+      userText,
+      confidence,
+      silence: silence || undefined,
+      listenedAs: b.listenedAs === 'pt' ? 'pt' : b.listenedAs === 'en' ? 'en' : undefined,
+      words,
+      accent: b.accent === 'en-GB' ? 'en-GB' : 'en-US',
+    },
+  };
+}
+
+/** Garante segmentos válidos, curtos e com idioma conhecido; senão a resposta é descartada. */
+export function normalizeChat(raw: unknown): ChatResult | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.segments) || r.segments.length === 0 || r.segments.length > MAX_SEGMENTS) return null;
+
+  const segments: ChatResult['segments'] = [];
+  let total = 0;
+  for (const s of r.segments) {
+    const seg = s as Record<string, unknown> | null;
+    if (typeof seg !== 'object' || seg === null || (seg.lang !== 'en' && seg.lang !== 'pt') || typeof seg.text !== 'string') return null;
+    const text = clean(seg.text);
+    if (!text || text.length > 220) return null;
+    total += text.length;
+    segments.push({ lang: seg.lang, text });
+  }
+  if (total > 500) return null;
+  return { segments, nextListen: r.nextListen === 'pt' ? 'pt' : 'en', end: r.end === true };
 }

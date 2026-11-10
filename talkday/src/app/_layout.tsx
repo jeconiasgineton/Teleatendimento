@@ -43,6 +43,7 @@ function Shell() {
       <Tabs.Screen name="settings" options={{ title: 'Ajustes', tabBarIcon: icon('settings') }} />
       <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
       <Tabs.Screen name="pack/[kind]" options={{ href: null }} />
+      <Tabs.Screen name="talk" options={{ href: null }} />
     </Tabs>
   );
 }
