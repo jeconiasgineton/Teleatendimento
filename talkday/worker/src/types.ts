@@ -20,3 +20,18 @@ export interface CheckResult {
   /** Só na mini conversa: resposta curta do coach quando o aluno acerta. */
   reply?: { en: string; pt: string };
 }
+
+export interface CoachRequest {
+  /** Palavras da lição que a pergunta deve incentivar. */
+  words: string[];
+  /** Turnos anteriores da conversa (mais antigos primeiro). */
+  history: { coach: string; student: string }[];
+  accent: 'en-US' | 'en-GB';
+}
+
+export interface CoachResult {
+  coach: string;
+  coachPt: string;
+  /** Resposta-modelo (usa ao menos uma das palavras da lição). */
+  suggestion: string;
+}

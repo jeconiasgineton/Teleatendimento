@@ -1,4 +1,4 @@
-import type { CheckRequest, CheckResult } from './types.ts';
+import type { CheckRequest, CheckResult, CoachRequest, CoachResult } from './types.ts';
 
 export const MAX_SENTENCE = 200;
 export const MAX_CONTEXT = 200;
@@ -56,4 +56,55 @@ export function normalizeResult(raw: unknown, req: CheckRequest): CheckResult | 
     if (en) result.reply = { en, pt };
   }
   return result;
+}
+
+export const MAX_HISTORY = 3;
+
+export function parseCoachRequest(body: unknown): { ok: true; value: CoachRequest } | { ok: false; error: string } {
+  if (typeof body !== 'object' || body === null) return { ok: false, error: 'corpo inválido' };
+  const b = body as Record<string, unknown>;
+
+  if (!Array.isArray(b.words) || b.words.length === 0 || b.words.length > MAX_TARGETS) return { ok: false, error: 'words inválido' };
+  const words: string[] = [];
+  for (const w of b.words) {
+    if (typeof w !== 'string') return { ok: false, error: 'words inválido' };
+    const t = clean(w);
+    if (!t || t.length > MAX_WORD) return { ok: false, error: 'words inválido' };
+    words.push(t);
+  }
+
+  const history: CoachRequest['history'] = [];
+  if (b.history !== undefined) {
+    if (!Array.isArray(b.history) || b.history.length > MAX_HISTORY) return { ok: false, error: 'history inválido' };
+    for (const h of b.history) {
+      const turn = h as Record<string, unknown> | null;
+      if (typeof turn !== 'object' || turn === null || typeof turn.coach !== 'string' || typeof turn.student !== 'string') {
+        return { ok: false, error: 'history inválido' };
+      }
+      const coach = clean(turn.coach);
+      const student = clean(turn.student);
+      if (coach.length > MAX_CONTEXT || student.length > MAX_SENTENCE) return { ok: false, error: 'history inválido' };
+      history.push({ coach, student });
+    }
+  }
+  return { ok: true, value: { words, history, accent: b.accent === 'en-GB' ? 'en-GB' : 'en-US' } };
+}
+
+const tokens = (s: string): string[] => s.toLowerCase().match(/[a-z']+/g) ?? [];
+
+/** Só aceita a pergunta se vier completa e a resposta-modelo usar uma palavra da lição. */
+export function normalizeCoach(raw: unknown, req: CoachRequest): CoachResult | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.coach !== 'string' || typeof r.coachPt !== 'string' || typeof r.suggestion !== 'string') return null;
+  const coach = clean(r.coach);
+  const coachPt = clean(r.coachPt);
+  const suggestion = clean(r.suggestion);
+  if (!coach || !coachPt || !suggestion) return null;
+  if (coach.length > 120 || coachPt.length > 140 || suggestion.length > 100) return null;
+  const targets = req.words.map((w) => w.toLowerCase());
+  if (!tokens(suggestion).some((t) => targets.includes(t))) return null;
+  // A pergunta não pode ser repetida de um turno anterior.
+  if (req.history.some((h) => h.coach.toLowerCase() === coach.toLowerCase())) return null;
+  return { coach, coachPt, suggestion };
 }

@@ -60,5 +60,9 @@ npm test && npm run deploy
 Depois copie `.env.example` para `.env` e preencha `EXPO_PUBLIC_AI_PROXY_URL` (e `EXPO_PUBLIC_APP_TOKEN`).
 Sem a URL, o app usa o corretor local de teste. O modelo é configurável em `worker/wrangler.toml` (`GEMINI_MODEL`).
 
-Endpoint `POST /check` (`mode`: `sentence` ou `conversation`) devolve
-`{ correct, corrected, explanationPt, reply? }`; em caso de acerto na conversa, `reply` é a reação do coach.
+Endpoints:
+
+- `POST /check` (`mode`: `sentence` ou `conversation`) devolve `{ correct, corrected, explanationPt, reply? }`; em caso de acerto na conversa, `reply` é a reação do coach.
+- `POST /coach` recebe `{ words, history, accent }` e devolve a próxima pergunta da mini conversa: `{ coach, coachPt, suggestion }`. O Worker só aceita a pergunta se a resposta-modelo usar uma palavra da lição e se ela não repetir o histórico.
+
+Na mini conversa o app pré-carrega a pergunta enquanto o aluno termina a parte 2 e já pede a próxima ao acertar. Se a IA falhar ou demorar mais de 8 s, usa as perguntas fixas de `src/data/course/`.

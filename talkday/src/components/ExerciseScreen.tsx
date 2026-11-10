@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton } from '@/components/BigButton';
 import { FeedbackBanner } from '@/components/FeedbackBanner';
@@ -10,13 +10,13 @@ import { StepProgress } from '@/components/StepProgress';
 import { WordHero } from '@/components/WordHero';
 import { useSettings } from '@/context/SettingsContext';
 import { lessonPassed, type LessonResult } from '@/domain/progress';
-import type { Lesson, Step } from '@/domain/types';
+import type { ConversationTurn, Lesson, Step } from '@/domain/types';
 import { useExercise } from '@/hooks/useExercise';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
 import { speak, stopSpeaking } from '@/services/speech';
 import { colors, radius, space } from '@/theme';
 
-function heroFor(step: Step) {
+function heroFor(step: Step, turn: ConversationTurn | null) {
   switch (step.kind) {
     case 'recognize':
       return { title: step.word.text, subtitle: undefined, speakText: step.word.text, label: 'Ouvir pronúncia' };
@@ -26,7 +26,7 @@ function heroFor(step: Step) {
       return {
         title: step.lesson.words.map((w) => w.text).join(' · '),
         subtitle: 'Responda usando estas palavras',
-        speakText: step.turn.coach,
+        speakText: turn?.coach ?? '',
         label: 'Ouvir pergunta',
       };
   }
@@ -53,12 +53,15 @@ export function ExerciseScreen({ lesson, onComplete, onNext, nextLabel = 'Próxi
   const mic = useSpeechInput(accent, (text) => setInput(text));
 
   // Fala a palavra/pergunta automaticamente quando o passo muda.
+  // Na mini conversa, só fala depois que a pergunta do coach chegar.
   const stepKey = ex.index;
+  const coachCoach = ex.turn?.coach;
   useEffect(() => {
-    if (step) speak(heroFor(step).speakText, accent, rate);
+    const text = step ? heroFor(step, ex.turn).speakText : '';
+    if (text) speak(text, accent, rate);
     return () => stopSpeaking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepKey]);
+  }, [stepKey, coachCoach]);
 
   const resetInputs = useCallback(() => {
     setInput('');
@@ -106,11 +109,12 @@ export function ExerciseScreen({ lesson, onComplete, onNext, nextLabel = 'Próxi
   }
   if (!step) return null;
 
-  const hero = heroFor(step);
+  const hero = heroFor(step, ex.turn);
+  const waitingCoach = step.kind === 'conversation' && !ex.turn;
   const locked = phase === 'checking' || phase === 'correct';
   const isRecognize = step.kind === 'recognize';
-  const canSubmit = !locked && (isRecognize ? selected !== null : input.trim().length > 0);
-  const referenceText = step.kind === 'recognize' ? step.word.text : step.kind === 'sentence' ? step.word.example : step.turn.suggestion;
+  const canSubmit = !locked && !waitingCoach && (isRecognize ? selected !== null : input.trim().length > 0);
+  const referenceText = step.kind === 'recognize' ? step.word.text : step.kind === 'sentence' ? step.word.example : (ex.turn ?? step.turn).suggestion;
 
   const onSubmit = () => {
     if (mic.listening) mic.stop();
@@ -151,13 +155,22 @@ export function ExerciseScreen({ lesson, onComplete, onNext, nextLabel = 'Próxi
             title={hero.title}
             subtitle={hero.subtitle}
             listenLabel={hero.label}
-            onListen={() => speak(hero.speakText, accent, rate)}
+            onListen={() => hero.speakText && speak(hero.speakText, accent, rate)}
           />
 
           {step.kind === 'conversation' ? (
-            <View style={styles.bubble}>
-              <Text style={styles.bubbleEn}>{step.turn.coach}</Text>
-              <Text style={styles.bubblePt}>{step.turn.coachPt}</Text>
+            <View style={styles.bubble} accessibilityLiveRegion="polite">
+              {ex.turn ? (
+                <>
+                  <Text style={styles.bubbleEn}>{ex.turn.coach}</Text>
+                  <Text style={styles.bubblePt}>{ex.turn.coachPt}</Text>
+                </>
+              ) : (
+                <View style={styles.thinking}>
+                  <ActivityIndicator color={colors.accentDark} />
+                  <Text style={styles.bubblePt}>Coach está pensando…</Text>
+                </View>
+              )}
             </View>
           ) : null}
 
@@ -238,6 +251,7 @@ const styles = StyleSheet.create({
   instruction: { fontSize: 17, fontWeight: '700', color: colors.text },
   bubble: { backgroundColor: colors.accentSoft, borderRadius: radius.md, padding: space.md, gap: 4 },
   bubbleEn: { fontSize: 20, fontWeight: '800', color: colors.accentDark },
+  thinking: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   bubblePt: { fontSize: 14, color: colors.muted },
   footer: { padding: space.md, gap: space.sm, borderTopWidth: 1, borderTopColor: colors.border },
   actions: { gap: space.xs },

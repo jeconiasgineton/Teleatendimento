@@ -1,6 +1,6 @@
-import { UpstreamError, askGemini } from './gemini.ts';
+import { UpstreamError, askCoach, askGemini } from './gemini.ts';
 import type { Env } from './types.ts';
-import { normalizeResult, parseCheckRequest } from './validate.ts';
+import { normalizeCoach, normalizeResult, parseCheckRequest, parseCoachRequest } from './validate.ts';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -17,7 +17,7 @@ export async function handle(request: Request, env: Env, fetchImpl: typeof fetch
   const { pathname } = new URL(request.url);
 
   if (pathname === '/health') return json({ ok: true });
-  if (pathname !== '/check') return json({ error: 'não encontrado' }, 404);
+  if (pathname !== '/check' && pathname !== '/coach') return json({ error: 'não encontrado' }, 404);
   if (request.method !== 'POST') return json({ error: 'método não permitido' }, 405);
 
   if (env.APP_TOKEN && !sameToken(request.headers.get('x-app-token') ?? '', env.APP_TOKEN)) {
@@ -34,14 +34,19 @@ export async function handle(request: Request, env: Env, fetchImpl: typeof fetch
   } catch {
     return json({ error: 'json inválido' }, 400);
   }
-  const parsed = parseCheckRequest(body);
-  if (!parsed.ok) return json({ error: parsed.error }, 400);
 
   try {
-    const raw = await askGemini(env, parsed.value, fetchImpl);
-    const result = normalizeResult(raw, parsed.value);
-    if (!result) return json({ error: 'resposta inesperada da IA' }, 502);
-    return json(result);
+    if (pathname === '/coach') {
+      const parsed = parseCoachRequest(body);
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      const result = normalizeCoach(await askCoach(env, parsed.value, fetchImpl), parsed.value);
+      return result ? json(result) : json({ error: 'resposta inesperada da IA' }, 502);
+    }
+
+    const parsed = parseCheckRequest(body);
+    if (!parsed.ok) return json({ error: parsed.error }, 400);
+    const result = normalizeResult(await askGemini(env, parsed.value, fetchImpl), parsed.value);
+    return result ? json(result) : json({ error: 'resposta inesperada da IA' }, 502);
   } catch (e) {
     return json({ error: e instanceof UpstreamError ? 'falha na IA' : 'erro interno' }, 502);
   }
