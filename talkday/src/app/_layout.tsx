@@ -1,24 +1,18 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View, type ColorValue } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { AccountProvider, useAccount } from '@/context/AccountContext';
 import { EntitlementProvider, useEntitlement } from '@/context/EntitlementContext';
 import { ProgressProvider, useProgress } from '@/context/ProgressContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
-import { dueItems } from '@/domain/srs';
 import { colors } from '@/theme';
 
-type IconName = React.ComponentProps<typeof Ionicons>['name'];
-const icon = (name: IconName) =>
-  ({ color, size }: { color: ColorValue; size: number }) => <Ionicons name={name} size={size} color={color as string} />;
-
-function Shell() {
+/** Espera tudo carregar do aparelho antes de mostrar qualquer tela. */
+function Gate() {
   const settings = useSettings();
   const progress = useProgress();
   const entitlement = useEntitlement();
   const account = useAccount();
-
   if (!settings.loaded || !progress.loaded || !entitlement.loaded || !account.loaded) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
@@ -26,31 +20,16 @@ function Shell() {
       </View>
     );
   }
-
-  const due = dueItems(Object.values(progress.state.reviews), Date.now()).length;
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primaryDark,
-        tabBarInactiveTintColor: colors.locked,
-        tabBarLabelStyle: { fontWeight: '700' },
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Exercício', tabBarIcon: icon('school') }} />
-      <Tabs.Screen name="practice" options={{ title: 'Praticar', tabBarIcon: icon('briefcase') }} />
-      <Tabs.Screen
-        name="review"
-        options={{ title: 'Revisão', tabBarIcon: icon('repeat'), tabBarBadge: due > 0 ? due : undefined }}
-      />
-      <Tabs.Screen name="progress" options={{ title: 'Progresso', tabBarIcon: icon('trophy') }} />
-      <Tabs.Screen name="settings" options={{ title: 'Ajustes', tabBarIcon: icon('settings') }} />
-      <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
-      <Tabs.Screen name="pack/[kind]" options={{ href: null }} />
-      <Tabs.Screen name="talk" options={{ href: null }} />
-      <Tabs.Screen name="premium" options={{ href: null }} />
-      <Tabs.Screen name="account" options={{ href: null }} />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+      {/* As abas ficam em (tabs); as telas abaixo abrem por cima delas e o "voltar" retorna à aba de origem. */}
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="premium" />
+      <Stack.Screen name="account" />
+      <Stack.Screen name="talk" />
+      <Stack.Screen name="lesson/[id]" />
+      <Stack.Screen name="pack/[kind]" />
+    </Stack>
   );
 }
 
@@ -61,7 +40,7 @@ export default function RootLayout() {
         <ProgressProvider>
           <AccountProvider>
             <StatusBar style="dark" />
-            <Shell />
+            <Gate />
           </AccountProvider>
         </ProgressProvider>
       </EntitlementProvider>
