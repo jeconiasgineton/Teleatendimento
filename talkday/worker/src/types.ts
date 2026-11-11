@@ -1,11 +1,32 @@
+export type Plan = 'free' | 'premium' | 'master';
+export type Level = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+
+/** Contador diário por chave (Durable Object). Opcional: sem ele não há limite no servidor. */
+export interface UsageNamespace {
+  idFromName(name: string): unknown;
+  get(id: unknown): { fetch(request: Request): Promise<Response> };
+}
+
 export interface Env {
   GEMINI_API_KEY: string;
   GEMINI_MODEL?: string;
-  /** Opcional: se definido, o app precisa enviar o mesmo valor em X-App-Token. */
-  APP_TOKEN?: string;
+  /** Segredo que assina tokens e códigos premium. */
+  AUTH_SECRET?: string;
+  /** Código do usuário master (libera tudo). */
+  MASTER_CODE?: string;
+  /** Ids de códigos premium revogados, separados por vírgula. */
+  REVOKED_IDS?: string;
+  USAGE?: UsageNamespace;
+  /** Uma conta por Durable Object: guarda a senha (hash) e o histórico do aluno. */
+  ACCOUNTS?: UsageNamespace;
 }
 
+/** Correções por dia no plano free. */
+export const FREE_DAILY_LIMIT = 30;
+
 export interface CheckRequest {
+  /** Nível do aluno; ajusta a profundidade da análise. */
+  level?: Level;
   mode: 'sentence' | 'conversation';
   sentence: string;
   targetWords: string[];
@@ -13,10 +34,28 @@ export interface CheckRequest {
   accent: 'en-US' | 'en-GB';
 }
 
+export type IssueType = 'grammar' | 'word-choice' | 'context' | 'spelling' | 'naturalness' | 'missing-target';
+
+export interface Issue {
+  type: IssueType;
+  /** Trecho do aluno com o problema. */
+  original: string;
+  /** Como ficaria corrigido. */
+  fix: string;
+  /** Explicação curta em português. */
+  explanationPt: string;
+}
+
 export interface CheckResult {
   correct: boolean;
   corrected: string;
   explanationPt: string;
+  /** Todos os problemas encontrados na frase inteira (máx. 4). */
+  issues?: Issue[];
+  /** Forma mais natural de dizer a mesma coisa, quando houver. */
+  natural?: string;
+  /** Uso do dia (só no plano free). */
+  usage?: { used: number; limit: number };
   /** Só na mini conversa: resposta curta do coach quando o aluno acerta. */
   reply?: { en: string; pt: string };
 }
@@ -71,4 +110,16 @@ export interface ChatResult {
   nextListen: 'en' | 'pt';
   /** A conversa terminou (o aluno se despediu ou pediu para parar). */
   end: boolean;
+}
+
+/** Progresso do aluno guardado na conta (mesma forma do app, já validada e limitada). */
+export interface ProgressData {
+  version: 1;
+  startedAt: number;
+  /** Cada "apagar progresso" aumenta a época; a época maior vence na hora de juntar. */
+  epoch: number;
+  completed: Record<string, { score: number; at: number }>;
+  learned: string[];
+  reviews: Record<string, { wordId: string; box: number; due: number; lapses: number; lastReviewed: number | null }>;
+  practice: Record<string, { best: number; at: number }>;
 }

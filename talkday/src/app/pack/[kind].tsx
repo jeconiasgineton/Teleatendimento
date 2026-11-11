@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChoiceSession } from '@/components/ChoiceSession';
 import { MeetingSession } from '@/components/MeetingSession';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { LISTEN_PACKS, MEETING_PACKS, VOCAB_PACKS, getPractice } from '@/data/practice';
 import {
@@ -23,6 +24,8 @@ export default function PackRoute() {
   const { kind } = useLocalSearchParams<{ kind: string }>();
   const router = useRouter();
   const { state, completePractice } = useProgress();
+  const { can } = useEntitlement();
+  const unlockAll = can('unlock-all');
   const info = getPractice(String(kind));
   const [active, setActive] = useState<{ pack: PackBase; run: number } | null>(null);
 
@@ -36,6 +39,7 @@ export default function PackRoute() {
   }, [active?.pack.id, active?.run, kind]);
 
   if (!info) return <Redirect href="/practice" />;
+  if (kind === 'meeting' && !can('meeting')) return <Redirect href="/premium" />;
 
   if (active) {
     const exit = () => setActive(null);
@@ -82,7 +86,7 @@ export default function PackRoute() {
         <Text style={styles.sub}>{info.subtitle}</Text>
 
         {info.packs.map((p) => {
-          const status = packStatus(state, p);
+          const status = packStatus(state, p, unlockAll);
           const locked = status === 'locked';
           const best = state.practice[p.id]?.best;
           return (

@@ -1,5 +1,6 @@
-import type { CheckRequest, CheckResult, ChatRequest, ChatResult, CoachRequest, CoachResult } from './types.ts';
+import type { CheckRequest, CheckResult, ChatRequest, ChatResult, CoachRequest, CoachResult, Issue, IssueType, Level } from './types.ts';
 
+export const LEVELS: Level[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 export const MAX_SENTENCE = 200;
 export const MAX_CONTEXT = 200;
 export const MAX_TARGETS = 10;
@@ -36,7 +37,29 @@ export function parseCheckRequest(body: unknown): { ok: true; value: CheckReques
   if (b.mode === 'conversation' && !context) return { ok: false, error: 'context obrigatório na conversa' };
 
   const accent = b.accent === 'en-GB' ? 'en-GB' : 'en-US';
-  return { ok: true, value: { mode: b.mode, sentence, targetWords, context, accent } };
+  const level = LEVELS.includes(b.level as Level) ? (b.level as Level) : undefined;
+  return { ok: true, value: { mode: b.mode, sentence, targetWords, context, accent, level } };
+}
+
+const ISSUE_TYPES: IssueType[] = ['grammar', 'word-choice', 'context', 'spelling', 'naturalness', 'missing-target'];
+const MAX_ISSUES = 4;
+
+function cleanIssues(raw: unknown): Issue[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Issue[] = [];
+  for (const it of raw) {
+    const r = it as Record<string, unknown> | null;
+    if (typeof r !== 'object' || r === null) continue;
+    if (!ISSUE_TYPES.includes(r.type as IssueType)) continue;
+    if (typeof r.original !== 'string' || typeof r.fix !== 'string' || typeof r.explanationPt !== 'string') continue;
+    const original = clean(r.original).slice(0, 120);
+    const fix = clean(r.fix).slice(0, 120);
+    const explanationPt = clean(r.explanationPt).slice(0, 200);
+    if (!explanationPt) continue;
+    out.push({ type: r.type as IssueType, original, fix, explanationPt });
+    if (out.length === MAX_ISSUES) break;
+  }
+  return out;
 }
 
 /** Garante o formato da resposta mesmo que o modelo devolva algo torto. */
@@ -46,11 +69,20 @@ export function normalizeResult(raw: unknown, req: CheckRequest): CheckResult | 
   if (typeof r.correct !== 'boolean') return null;
 
   const corrected = typeof r.corrected === 'string' && r.corrected.trim() ? clean(r.corrected).slice(0, MAX_SENTENCE) : req.sentence;
-  const explanation = typeof r.explanationPt === 'string' ? clean(r.explanationPt).slice(0, 300) : '';
-  if (!r.correct && !explanation) return null;
+  const issues = cleanIssues(r.issues);
+  // Só dicas de naturalidade não reprovam a frase; qualquer outro problema reprova.
+  const blocking = issues.some((i) => i.type !== 'naturalness');
+  const correct = r.correct && !blocking;
 
-  const result: CheckResult = { correct: r.correct, corrected, explanationPt: r.correct ? '' : explanation };
-  if (r.correct && req.mode === 'conversation') {
+  let explanation = typeof r.explanationPt === 'string' ? clean(r.explanationPt).slice(0, 300) : '';
+  if (!correct && !explanation) explanation = issues.find((i) => i.type !== 'naturalness')?.explanationPt ?? '';
+  if (!correct && !explanation) return null;
+
+  const result: CheckResult = { correct, corrected, explanationPt: correct ? '' : explanation };
+  if (issues.length) result.issues = issues;
+  const natural = typeof r.natural === 'string' ? clean(r.natural).slice(0, MAX_SENTENCE) : '';
+  if (natural && natural.toLowerCase() !== corrected.toLowerCase()) result.natural = natural;
+  if (correct && req.mode === 'conversation') {
     const en = typeof r.replyEn === 'string' ? clean(r.replyEn).slice(0, 160) : '';
     const pt = typeof r.replyPt === 'string' ? clean(r.replyPt).slice(0, 160) : '';
     if (en) result.reply = { en, pt };

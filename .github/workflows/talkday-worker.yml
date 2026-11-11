@@ -27,5 +27,9 @@ jobs:
           workingDirectory: talkday/worker
           secrets: |
             GEMINI_API_KEY
+            AUTH_SECRET
+            MASTER_CODE
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          MASTER_CODE: ${{ secrets.MASTER_CODE }}

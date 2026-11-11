@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, AppState, Easing, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton } from '@/components/BigButton';
+import { PremiumGate } from '@/components/PremiumGate';
+import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { useSettings } from '@/context/SettingsContext';
 import { WORDS_BY_ID } from '@/data/lessons';
@@ -63,6 +65,7 @@ export default function Talk() {
   const router = useRouter();
   const { accent, rate } = useSettings();
   const { state: progress } = useProgress();
+  const { can } = useEntitlement();
   const words = useMemo(() => recentWords(progress.learned, WORDS_BY_ID), [progress.learned]);
   const talk = useVoiceConversation({ accent, rate, words });
   const scroll = useRef<ScrollViewInstance>(null);
@@ -79,6 +82,19 @@ export default function Talk() {
     const t = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
     return () => clearTimeout(t);
   }, [talk.lines.length, talk.live]);
+
+  if (!can('free-talk')) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.intro}>
+          <PremiumGate title="Conversa livre é Premium" text="Converse por voz com a Sam, sem apertar nenhum botão, em inglês ou português. Ative o Premium com um código ou assinando." />
+          <View style={styles.full}>
+            <BigButton label="Voltar" tone="ghost" onPress={() => router.navigate('/practice')} />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   const running = talk.state !== 'idle' && talk.state !== 'ended';
   const blocked = !usingRealAI ? 'no-ai' : !recognitionSupported ? 'no-mic-support' : talk.problem;

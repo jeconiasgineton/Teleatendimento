@@ -1,3 +1,5 @@
+import type { Level } from './level.ts';
+
 export type Accent = 'en-US' | 'en-GB';
 
 export interface Word {
@@ -34,6 +36,8 @@ export type Step =
   | { kind: 'conversation'; lesson: Lesson; turn: ConversationTurn; turnIndex: number };
 
 export interface CheckRequest {
+  /** Nível do aluno, para o corretor ajustar a profundidade. */
+  level?: Level;
   mode: 'sentence' | 'conversation';
   accent: Accent;
   sentence: string;
@@ -55,12 +59,31 @@ export interface CoachRequest {
   topic?: string;
 }
 
+export type IssueType = 'grammar' | 'word-choice' | 'context' | 'spelling' | 'naturalness' | 'missing-target';
+
+/** Um problema encontrado na frase do aluno. */
+export interface Issue {
+  type: IssueType;
+  /** Trecho do aluno com o problema. */
+  original: string;
+  /** Como fica corrigido. */
+  fix: string;
+  /** Explicação curta em português. */
+  explanationPt: string;
+}
+
 export interface CheckResult {
   correct: boolean;
   /** Forma correta em inglês. */
   corrected: string;
   /** Explicação em UMA frase (pt-BR). */
   explanationPt: string;
+  /** Todos os problemas da frase inteira (gramática, palavras, contexto, naturalidade). */
+  issues?: Issue[];
+  /** Forma mais natural de dizer a mesma coisa. */
+  natural?: string;
+  /** Uso do dia no plano grátis. */
+  usage?: { used: number; limit: number };
   /** Só na mini conversa: reação curta do coach ao acerto. */
   reply?: { en: string; pt: string };
 }

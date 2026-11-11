@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton } from '@/components/BigButton';
 import { FeedbackBanner } from '@/components/FeedbackBanner';
 import { PhraseInput } from '@/components/PhraseInput';
+import { useProgress } from '@/context/ProgressContext';
 import { useSettings } from '@/context/SettingsContext';
+import { levelFromProgress } from '@/domain/level';
 import { randomError, randomSuccess } from '@/data/messages';
 import { PASS_PERCENT, type MeetingPack } from '@/domain/practice';
 import type { ConversationTurn } from '@/domain/types';
@@ -27,6 +29,8 @@ type Phase = 'answering' | 'checking' | 'correct' | 'wrong';
 /** Mini conversa de reunião: o Gemini faz as perguntas e corrige as respostas. */
 export function MeetingSession({ pack, onFinish, onRetry, onExit }: Props) {
   const { accent, rate } = useSettings();
+  const { state: progress } = useProgress();
+  const level = levelFromProgress(progress.completed);
   const total = pack.turns.length;
   const [index, setIndex] = useState(0);
   const [turn, setTurn] = useState<ConversationTurn | null>(null);
@@ -103,6 +107,7 @@ export function MeetingSession({ pack, onFinish, onRetry, onExit }: Props) {
     try {
       const r = await aiClient.checkSentence({
         mode: 'conversation',
+        level,
         accent,
         sentence,
         targetWords: pack.words,
@@ -115,11 +120,28 @@ export function MeetingSession({ pack, onFinish, onRetry, onExit }: Props) {
         log.current.push({ coach: turn.coach, student: sentence });
         if (index + 1 < total) requestTurn(index + 1);
         log.current.pop();
-        setFeedback({ correct: true, message: randomSuccess(), corrected: r.corrected, explanationPt: '', reply: r.reply });
+        setFeedback({
+          correct: true,
+          message: randomSuccess(),
+          corrected: r.corrected,
+          explanationPt: '',
+          reply: r.reply,
+          original: sentence,
+          issues: r.issues,
+          natural: r.natural,
+        });
         setPhase('correct');
       } else {
         setAttempts((a) => a + 1);
-        setFeedback({ correct: false, message: randomError(), corrected: r.corrected, explanationPt: r.explanationPt });
+        setFeedback({
+          correct: false,
+          message: randomError(),
+          corrected: r.corrected,
+          explanationPt: r.explanationPt,
+          original: sentence,
+          issues: r.issues,
+          natural: r.natural,
+        });
         setPhase('wrong');
       }
     } catch {
