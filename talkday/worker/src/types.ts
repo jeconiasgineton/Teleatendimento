@@ -17,6 +17,8 @@ export interface Env {
   /** Ids de códigos premium revogados, separados por vírgula. */
   REVOKED_IDS?: string;
   USAGE?: UsageNamespace;
+  /** Uma conta por Durable Object: guarda a senha (hash) e o histórico do aluno. */
+  ACCOUNTS?: UsageNamespace;
 }
 
 /** Correções por dia no plano free. */
@@ -108,4 +110,16 @@ export interface ChatResult {
   nextListen: 'en' | 'pt';
   /** A conversa terminou (o aluno se despediu ou pediu para parar). */
   end: boolean;
+}
+
+/** Progresso do aluno guardado na conta (mesma forma do app, já validada e limitada). */
+export interface ProgressData {
+  version: 1;
+  startedAt: number;
+  /** Cada "apagar progresso" aumenta a época; a época maior vence na hora de juntar. */
+  epoch: number;
+  completed: Record<string, { score: number; at: number }>;
+  learned: string[];
+  reviews: Record<string, { wordId: string; box: number; due: number; lapses: number; lastReviewed: number | null }>;
+  practice: Record<string, { best: number; at: number }>;
 }

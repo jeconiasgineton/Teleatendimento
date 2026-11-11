@@ -46,6 +46,13 @@ src/
   - O plano é validado no **servidor**: o app troca um código por um token assinado (`POST /redeem`) e o Worker confere o token em cada chamada. Códigos Premium (`TD-XXXXXX-AAAAMMDD-XXXXXXXXXX`) vencem na data e podem ser revogados em `REVOKED_IDS`. O limite diário usa um Durable Object e o id anônimo do aparelho.
   - Assinatura paga: o botão "Assinar" abre o link em `UPGRADE_URL`; a emissão automática do código depois do pagamento ainda depende de um provedor de pagamento.
 - **Correção da frase:** a IA analisa a frase inteira (gramática, escolha de palavras, contexto, escrita e naturalidade), mostra cada problema com a explicação, a forma correta e uma forma mais natural, ajustando a profundidade ao nível do aluno (A1 a B1, pelo ponto do curso).
+- **Contas (e-mail + celular + senha):**
+  - O e-mail e o celular formam a chave única da conta; a senha protege o acesso. Em qualquer aparelho, com os mesmos dados e a senha, o aluno recupera o histórico. Com outro e-mail ou outro celular é outra conta e começa do zero.
+  - O servidor **não guarda** e-mail nem celular: só um código irreversível (HMAC com o `AUTH_SECRET`) e o hash da senha (PBKDF2-SHA256, 100 mil iterações). Cada conta é um Durable Object (`AccountDO`).
+  - Proteções: 5 senhas erradas bloqueiam a conta por 15 minutos, há limite de tentativas por IP e a resposta é a mesma para senha errada e conta inexistente.
+  - Modo convidado continua funcionando (progresso só no aparelho). Ao criar a conta, o progresso do aparelho vai para ela. Ao entrar numa conta existente, vale o histórico dela. Ao sair, o aparelho volta ao início.
+  - Sincronização: envia as mudanças alguns segundos depois e traz o que outro aparelho fez ao abrir o app. Se dois aparelhos mudarem ao mesmo tempo, o histórico é **juntado** (lições e palavras somam, vale a maior nota e a revisão mais recente). "Apagar progresso" abre uma nova época que os outros aparelhos respeitam.
+  - Sem verificação por e-mail ou SMS e **sem recuperação de senha**: quem esquecer a senha perde o acesso (o cadastro avisa). O plano Premium/Master ainda é por aparelho, não vai junto com a conta.
 - **Dados:** tudo salvo localmente (AsyncStorage), sem login. Ajustes: sotaque, velocidade, lembrete diário 19h, apagar progresso.
 
 ## Testes e builds
@@ -77,6 +84,7 @@ Sem a URL, o app usa o corretor local de teste. O modelo é configurável em `wo
 Endpoints:
 
 - `POST /check` (`mode`: `sentence` ou `conversation`, `level?`) devolve `{ correct, corrected, explanationPt, issues?, natural?, reply?, usage? }`. No plano grátis exige o cabeçalho `x-device-id` e responde `429 daily_limit` depois de 30 por dia.
+- `POST /account/signup`, `/account/login`, `/account/refresh`, `/account/get`, `/account/put`: contas e histórico na nuvem (sessão no cabeçalho `x-session`, com controle de versão para detectar edição simultânea).
 - `POST /redeem` troca um código por `{ plan, token, expiresAt }`; `POST /admin/code` (só master) gera um código Premium. `/coach` e `/chat` respondem `403 premium_required` ao plano grátis.
 - `POST /chat` recebe `{ history, userText?, confidence?, silence?, listenedAs?, words, accent }` e devolve `{ segments: [{ lang: 'en'|'pt', text }], nextListen: 'en'|'pt', end }` para a conversa livre por voz.
 - `POST /coach` recebe `{ words, history, accent, topic? }` e devolve a próxima pergunta da mini conversa: `{ coach, coachPt, suggestion }`. O Worker só aceita a pergunta se a resposta-modelo usar uma palavra da lição e se ela não repetir o histórico.

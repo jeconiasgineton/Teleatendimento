@@ -165,3 +165,35 @@ export function usageDay(nowMs: number): string {
 export function nextReset(nowMs: number): number {
   return endOfDayMs(brDate(nowMs)) + 1000;
 }
+
+// ---- sessão de conta (outro tipo de token, com prefixo próprio) ----
+
+export const SESSION_TTL_MS = 180 * DAY_MS;
+
+export interface SessionPayload {
+  /** Chave da conta (HMAC de e-mail + celular). */
+  a: string;
+  e: number;
+}
+
+export async function signSession(secret: string, payload: SessionPayload): Promise<string> {
+  const body = toB64u(enc.encode(JSON.stringify(payload)));
+  return `s1.${body}.${toB64u(await hmac(secret, `s1.${body}`))}`;
+}
+
+export async function verifySession(secret: string, token: string, nowMs: number): Promise<SessionPayload | null> {
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts[0] !== 's1') return null;
+  const sig = fromB64u(parts[2]);
+  const bodyBytes = fromB64u(parts[1]);
+  if (!sig || !bodyBytes) return null;
+  const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret, ['verify']), sig, enc.encode(`s1.${parts[1]}`));
+  if (!ok) return null;
+  try {
+    const p = JSON.parse(new TextDecoder().decode(bodyBytes)) as SessionPayload;
+    if (typeof p.a !== 'string' || !/^[0-9a-f]{64}$/.test(p.a) || typeof p.e !== 'number') return null;
+    return p.e * 1000 > nowMs ? p : null;
+  } catch {
+    return null;
+  }
+}

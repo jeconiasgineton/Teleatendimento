@@ -14,9 +14,17 @@ GEMINI_MODEL = "gemini-2.5-flash"
 name = "USAGE"
 class_name = "UsageCounter"
 
+[[durable_objects.bindings]]
+name = "ACCOUNTS"
+class_name = "AccountDO"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["UsageCounter"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AccountDO"]
 
 # Segredos (além de GEMINI_API_KEY):
 #   npx wrangler secret put AUTH_SECRET     # assina tokens e códigos premium (texto longo e aleatório)

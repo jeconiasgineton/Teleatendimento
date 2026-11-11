@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, type ColorValue } from 'react-native';
+import { AccountProvider, useAccount } from '@/context/AccountContext';
 import { EntitlementProvider, useEntitlement } from '@/context/EntitlementContext';
 import { ProgressProvider, useProgress } from '@/context/ProgressContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
@@ -16,8 +17,9 @@ function Shell() {
   const settings = useSettings();
   const progress = useProgress();
   const entitlement = useEntitlement();
+  const account = useAccount();
 
-  if (!settings.loaded || !progress.loaded || !entitlement.loaded) {
+  if (!settings.loaded || !progress.loaded || !entitlement.loaded || !account.loaded) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -47,6 +49,7 @@ function Shell() {
       <Tabs.Screen name="pack/[kind]" options={{ href: null }} />
       <Tabs.Screen name="talk" options={{ href: null }} />
       <Tabs.Screen name="premium" options={{ href: null }} />
+      <Tabs.Screen name="account" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -56,8 +59,10 @@ export default function RootLayout() {
     <SettingsProvider>
       <EntitlementProvider>
         <ProgressProvider>
-          <StatusBar style="dark" />
-          <Shell />
+          <AccountProvider>
+            <StatusBar style="dark" />
+            <Shell />
+          </AccountProvider>
         </ProgressProvider>
       </EntitlementProvider>
     </SettingsProvider>

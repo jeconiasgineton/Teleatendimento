@@ -1,12 +1,20 @@
 import { authenticate, nextReset, redeem, generateCode, usageDay } from './auth.ts';
+import { handleAccount } from './accountRoutes.ts';
 import { UpstreamError, askChat, askCoach, askGemini } from './gemini.ts';
 import { FREE_DAILY_LIMIT, type Env } from './types.ts';
 import { bump } from './usage.ts';
 import { normalizeChat, normalizeCoach, normalizeResult, parseChatRequest, parseCheckRequest, parseCoachRequest } from './validate.ts';
 
+export { AccountDO } from './accountDo.ts';
 export { UsageCounter } from './usage.ts';
 
-const ROUTES = new Set(['/check', '/coach', '/chat', '/redeem', '/admin/code']);
+const ROUTES = new Set(['/check', '/coach', '/chat', '/redeem', '/admin/code', '/account/signup', '/account/login', '/account/refresh', '/account/get', '/account/put']);
+
+/** Tamanho máximo do corpo por rota (o histórico do aluno é a maior). */
+function maxBody(pathname: string): number {
+  if (pathname === '/account/put' || pathname === '/account/signup') return 140_000;
+  return pathname === '/chat' ? 8192 : 4096;
+}
 /** Tentativas de resgate de código por IP por dia (barra adivinhação do código master). */
 const REDEEM_ATTEMPTS_PER_DAY = 20;
 const DEVICE_RE = /^[A-Za-z0-9-]{16,64}$/;
@@ -22,16 +30,21 @@ export async function handle(request: Request, env: Env, fetchImpl: typeof fetch
   if (request.method !== 'POST') return json({ error: 'método não permitido' }, 405);
 
   const len = Number(request.headers.get('content-length') ?? '0');
-  if (len > (pathname === '/chat' ? 8192 : 4096)) return json({ error: 'corpo muito grande' }, 413);
+  if (len > maxBody(pathname)) return json({ error: 'corpo muito grande' }, 413);
 
   let body: unknown;
   try {
-    body = JSON.parse(await request.text());
+    const text = await request.text();
+    if (text.length > maxBody(pathname)) return json({ error: 'corpo muito grande' }, 413);
+    body = JSON.parse(text);
   } catch {
     return json({ error: 'json inválido' }, 400);
   }
   const day = usageDay(nowMs);
   const ip = request.headers.get('cf-connecting-ip') ?? '';
+
+  // ---- conta do aluno (e-mail + celular + senha) e histórico na nuvem ----
+  if (pathname.startsWith('/account/')) return handleAccount(pathname, body, request, env, nowMs);
 
   // ---- resgatar código: troca por token assinado ----
   if (pathname === '/redeem') {

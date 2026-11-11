@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MasterPanel } from '@/components/MasterPanel';
+import { useAccount } from '@/context/AccountContext';
 import { useEntitlement } from '@/context/EntitlementContext';
 import { useProgress } from '@/context/ProgressContext';
 import { useSettings } from '@/context/SettingsContext';
@@ -21,6 +22,7 @@ export default function Settings() {
   const { reset } = useProgress();
   const router = useRouter();
   const { plan, usage } = useEntitlement();
+  const account = useAccount();
   const [busy, setBusy] = useState(false);
 
   const toggleReminder = async (on: boolean) => {
@@ -40,6 +42,21 @@ export default function Settings() {
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.h1}>Ajustes</Text>
+
+        <Text style={styles.h2}>Minha conta</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/account')} style={[styles.option, styles.planRow]}>
+          <View style={styles.planText}>
+            <Text style={styles.optionText}>{account.signedIn ? account.emailHint : 'Modo convidado'}</Text>
+            <Text style={styles.note}>
+              {account.signedIn
+                ? account.sync === 'expired'
+                  ? 'Sessão expirada. Entre de novo.'
+                  : 'Seu histórico está salvo na nuvem'
+                : 'Progresso só neste aparelho'}
+            </Text>
+          </View>
+          <Text style={styles.link}>{account.signedIn ? 'Gerenciar' : 'Criar conta / Entrar'}</Text>
+        </Pressable>
 
         <Text style={styles.h2}>Meu plano</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/premium')} style={[styles.option, styles.planRow]}>
@@ -105,7 +122,7 @@ export default function Settings() {
         <Pressable accessibilityRole="button" onPress={confirmReset} style={[styles.option, styles.danger]}>
           <Text style={[styles.optionText, { color: colors.errorDark }]}>Apagar meu progresso</Text>
         </Pressable>
-        <Text style={styles.note}>Seu progresso fica só neste aparelho.</Text>
+        <Text style={styles.note}>{account.signedIn ? 'Apagar também apaga o histórico da sua conta.' : 'Seu progresso fica só neste aparelho.'}</Text>
       </ScrollView>
     </SafeAreaView>
   );

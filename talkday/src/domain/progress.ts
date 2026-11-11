@@ -10,6 +10,8 @@ export interface ProgressState {
   reviews: Record<string, ReviewItem>;
   /** Melhor resultado (%) de cada pacote da aba Praticar. */
   practice: Record<string, { best: number; at: number }>;
+  /** Sobe a cada "apagar progresso"; ao juntar dois aparelhos, a época maior vence. */
+  epoch: number;
 }
 
 export interface LessonResult {
@@ -25,7 +27,12 @@ export const GOAL_DAYS = 90;
 export const MAX_SKIPPED_RATIO = 0.2;
 
 export function initialProgress(now: number): ProgressState {
-  return { version: 1, startedAt: now, completed: {}, learned: [], reviews: {}, practice: {} };
+  return { version: 1, startedAt: now, completed: {}, learned: [], reviews: {}, practice: {}, epoch: 0 };
+}
+
+/** Apaga o progresso e marca uma nova época, para outros aparelhos da conta não o trazerem de volta. */
+export function resetProgress(prev: ProgressState, now: number): ProgressState {
+  return { ...initialProgress(now), epoch: prev.epoch + 1 };
 }
 
 export function lessonPassed(r: Pick<LessonResult, 'totalSteps' | 'skipped'>): boolean {
